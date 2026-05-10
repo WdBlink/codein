@@ -1,7 +1,9 @@
 import { normalizePath } from "obsidian";
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "child_process";
 
+import { resolveCliCommand, type CliSelfTestResult } from "./cliResolver";
 import type { CodeianSettings } from "./settings";
+import { DEFAULT_CODEX_ARGS } from "./defaults";
 
 export interface CodexRunResult {
 	code: number | null;
@@ -56,14 +58,16 @@ export class CodexRunner {
 
 		try {
 			const spawn = this.spawnProcess ?? (await import("child_process")).spawn;
+			const resolvedCommand = await resolveCliCommand(options.settings);
 			const args = buildCodexArgs(options.settings, cwd);
 
 			return await new Promise<CodexRunResult>((resolve, reject) => {
 				let stdout = "";
 				let stderr = "";
 
-				const child = spawn(options.settings.codexCommand || "codex", args, {
+				const child = spawn(resolvedCommand.command, args, {
 					cwd,
+					env: resolvedCommand.env,
 					shell: false,
 					signal: this.abortController?.signal,
 				});
@@ -101,7 +105,65 @@ export class CodexRunner {
 	}
 }
 
-export const DEFAULT_CODEX_ARGS = "exec --ask-for-approval never --sandbox read-only --skip-git-repo-check";
+export async function testCodexCli(settings: CodeianSettings, vaultPath: string | null): Promise<CliSelfTestResult> {
+	const cwd = resolveWorkingDirectory(settings, vaultPath) ?? vaultPath ?? "/";
+	const resolvedCommand = await resolveCliCommand(settings);
+	const spawn = (await import("child_process")).spawn;
+
+	return await new Promise<CliSelfTestResult>((resolve) => {
+		let stdout = "";
+		let stderr = "";
+		const child = spawn(resolvedCommand.command, ["--version"], {
+			cwd,
+			env: resolvedCommand.env,
+			shell: false,
+		});
+		const timeout = globalThis.setTimeout(() => {
+			child.kill();
+			resolve({
+				ok: false,
+				command: resolvedCommand.command,
+				message: "Codex CLI self-test timed out after 8 seconds.",
+				stdout,
+				stderr,
+				code: null,
+			});
+		}, 8000);
+
+		child.stdout.on("data", (data: Buffer) => {
+			stdout += data.toString();
+		});
+
+		child.stderr.on("data", (data: Buffer) => {
+			stderr += data.toString();
+		});
+
+		child.on("error", (error) => {
+			globalThis.clearTimeout(timeout);
+			resolve({
+				ok: false,
+				command: resolvedCommand.command,
+				message: formatCliLaunchError(error.message, resolvedCommand.path),
+				stdout,
+				stderr,
+				code: null,
+			});
+		});
+
+		child.on("close", (code) => {
+			globalThis.clearTimeout(timeout);
+			const output = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
+			resolve({
+				ok: code === 0,
+				command: resolvedCommand.command,
+				message: code === 0 ? `Codex CLI available: ${output || resolvedCommand.command}` : `Codex CLI exited with code ${code}.`,
+				stdout,
+				stderr,
+				code,
+			});
+		});
+	});
+}
 
 export function buildCodexArgs(settings: CodeianSettings, cwd: string): string[] {
 	return [
@@ -120,6 +182,11 @@ export function getCodexSafetyWarning(settings: CodeianSettings): string | null 
 	}
 
 	const args = splitCommandLine(settings.codexExtraArgs || DEFAULT_CODEX_ARGS);
+	const execIndex = args.indexOf("exec");
+	if (execIndex < 0) {
+		return "The configured arguments do not include exec. Codeian expects Codex to run non-interactively.";
+	}
+
 	const sandboxIndex = args.indexOf("--sandbox");
 	if (sandboxIndex < 0 || args[sandboxIndex + 1] !== "read-only") {
 		return "The configured arguments do not include --sandbox read-only. The CLI may be able to modify files.";
@@ -128,6 +195,9 @@ export function getCodexSafetyWarning(settings: CodeianSettings): string | null 
 	const approvalIndex = args.indexOf("--ask-for-approval");
 	if (approvalIndex < 0 || args[approvalIndex + 1] !== "never") {
 		return "The configured arguments do not include --ask-for-approval never. The CLI may prompt or block unexpectedly.";
+	}
+	if (approvalIndex > execIndex) {
+		return "The configured arguments place --ask-for-approval after exec. Put it before exec for the current Codex CLI.";
 	}
 
 	return null;
@@ -140,6 +210,19 @@ function resolveWorkingDirectory(settings: CodeianSettings, vaultPath: string | 
 	}
 
 	return vaultPath ? normalizePath(vaultPath) : null;
+}
+
+function formatCliLaunchError(message: string, enhancedPath: string): string {
+	if (message.includes("ENOENT")) {
+		return [
+			"Could not launch codex from Obsidian.",
+			"Codeian searched the configured command and an enhanced PATH for common local binary directories.",
+			`Enhanced PATH: ${enhancedPath}`,
+			"Set an absolute CLI command path in Codeian settings if Codex is installed by a version manager.",
+		].join("\n");
+	}
+
+	return message;
 }
 
 export function splitCommandLine(input: string): string[] {

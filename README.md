@@ -52,7 +52,7 @@ Example test-vault plugin path:
 ## Settings
 
 - `CLI command`: defaults to `codex`.
-- `Codex arguments`: defaults to `exec --ask-for-approval never --sandbox read-only --skip-git-repo-check`.
+- `Codex arguments`: defaults to `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check`.
 - `Working directory`: optional absolute path. When empty, Codeian uses the current vault path when available.
 
 The default arguments run Codex non-interactively with no approval prompts and a read-only sandbox. Change them only when you intentionally want a different execution mode.

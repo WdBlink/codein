@@ -1,6 +1,8 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
 import CodeianPlugin from "./main";
+import { testCodexCli } from "./codexRunner";
+import { DEFAULT_CODEX_ARGS } from "./defaults";
 
 export interface CodeianSettings {
 	codexCommand: string;
@@ -10,7 +12,7 @@ export interface CodeianSettings {
 
 export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
-	codexExtraArgs: "exec --ask-for-approval never --sandbox read-only --skip-git-repo-check",
+	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	workingDirectory: "",
 };
 
@@ -60,6 +62,30 @@ export class CodeianSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.workingDirectory = value.trim();
 					await this.plugin.saveSettings();
+				}));
+
+		const testResultEl = containerEl.createDiv({ cls: "codeian-settings-test-result" });
+		new Setting(containerEl)
+			.setName("Test CLI")
+			.setDesc("Checks whether Obsidian can launch the configured Codex command.")
+			.addButton((button) => button
+				.setButtonText("Run test")
+				.onClick(async () => {
+					button.setDisabled(true);
+					testResultEl.setText("Testing Codex CLI...");
+					try {
+						const result = await testCodexCli(this.plugin.settings, this.plugin.getVaultPath());
+						testResultEl.toggleClass("codeian-settings-test-error", !result.ok);
+						testResultEl.setText(result.message);
+						new Notice(result.ok ? "Codex CLI test passed." : "Codex CLI test failed.");
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						testResultEl.addClass("codeian-settings-test-error");
+						testResultEl.setText(message);
+						new Notice(`Codex CLI test failed: ${message}`);
+					} finally {
+						button.setDisabled(false);
+					}
 				}));
 	}
 }

@@ -4,11 +4,11 @@ import { PassThrough } from "node:stream";
 
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "node:child_process";
 import type { CodeianSettings } from "../src/settings";
+import { DEFAULT_CODEX_ARGS } from "../src/defaults";
 import {
 	buildCodexArgs,
 	CodexRunner,
 	type CodexSpawn,
-	DEFAULT_CODEX_ARGS,
 	getCodexSafetyWarning,
 	splitCommandLine,
 } from "../src/codexRunner";
@@ -70,9 +70,9 @@ describe("splitCommandLine", () => {
 
 	it("keeps the production default in read-only non-interactive mode", () => {
 		expect(splitCommandLine(DEFAULT_CODEX_ARGS)).toEqual([
-			"exec",
 			"--ask-for-approval",
 			"never",
+			"exec",
 			"--sandbox",
 			"read-only",
 			"--skip-git-repo-check",
@@ -83,9 +83,9 @@ describe("splitCommandLine", () => {
 describe("buildCodexArgs", () => {
 	it("appends working directory and stdin prompt marker", () => {
 		expect(buildCodexArgs(SETTINGS, "/tmp/vault")).toEqual([
-			"exec",
 			"--ask-for-approval",
 			"never",
+			"exec",
 			"--sandbox",
 			"read-only",
 			"--skip-git-repo-check",
@@ -107,6 +107,13 @@ describe("getCodexSafetyWarning", () => {
 
 	it("warns when sandbox is not read-only", () => {
 		expect(getCodexSafetyWarning({ ...SETTINGS, codexExtraArgs: "exec --sandbox danger-full-access" })).toContain("read-only");
+	});
+
+	it("warns when approval policy is placed after the exec subcommand", () => {
+		expect(getCodexSafetyWarning({
+			...SETTINGS,
+			codexExtraArgs: "exec --ask-for-approval never --sandbox read-only",
+		})).toContain("after exec");
 	});
 });
 
@@ -132,9 +139,10 @@ describe("CodexRunner", () => {
 		expect(result).toEqual({ code: 0, stdout: "out", stderr: "err" });
 		expect(stdout).toEqual(["out"]);
 		expect(stderr).toEqual(["err"]);
-		expect(calls[0]?.command).toBe("codex");
+		expect(calls[0]?.command.endsWith("codex")).toBe(true);
 		expect(calls[0]?.args.slice(-3)).toEqual(["-C", "/tmp/vault", "-"]);
 		expect(calls[0]?.options.cwd).toBe("/tmp/vault");
+		expect(calls[0]?.options.env?.PATH).toContain("/usr/local/bin");
 		expect(calls[0]?.stdin).toBe("explain");
 	});
 

@@ -23,7 +23,7 @@ Use a dedicated test vault. Do not run development builds in a primary vault.
 - [ ] Open Codeian settings.
 - [ ] Confirm `CLI command`, `Codex arguments`, and `Working directory` are visible.
 - [ ] Confirm settings persist after closing and reopening Obsidian settings.
-- [ ] Restore the default arguments before testing a real run: `exec --ask-for-approval never --sandbox read-only --skip-git-repo-check`.
+- [ ] Restore the default arguments before testing a real run: `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check`.
 
 ## Safety
 

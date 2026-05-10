@@ -13,9 +13,11 @@ export class CodeianView extends ItemView {
 	private cancelButtonEl: HTMLButtonElement | null = null;
 	private clearButtonEl: HTMLButtonElement | null = null;
 	private outputEl: HTMLElement | null = null;
+	private outputBodyEl: HTMLElement | null = null;
 	private statusEl: HTMLElement | null = null;
 	private lastPrompt = "";
 	private promptContainsNoteContext = false;
+	private readonly emptyOutputText = "Output will appear here after a run.";
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
@@ -59,8 +61,12 @@ export class CodeianView extends ItemView {
 		this.contentEl.addClass("codeian-view");
 
 		const headerEl = this.contentEl.createDiv({ cls: "codeian-header" });
-		headerEl.createEl("h3", { text: "Codeian", cls: "codeian-title" });
-		this.statusEl = headerEl.createDiv({
+		const titleGroupEl = headerEl.createDiv({ cls: "codeian-title-group" });
+		titleGroupEl.createEl("h3", { text: "Codeian", cls: "codeian-title" });
+		titleGroupEl.createDiv({ text: "Local command sidebar", cls: "codeian-subtitle" });
+		const statusWrapEl = headerEl.createDiv({ cls: "codeian-status-wrap" });
+		statusWrapEl.createDiv({ cls: "codeian-status-dot", attr: { "aria-hidden": "true" } });
+		this.statusEl = statusWrapEl.createDiv({
 			cls: "codeian-status",
 			text: "Ready",
 			attr: {
@@ -71,15 +77,33 @@ export class CodeianView extends ItemView {
 		});
 
 		const formEl = this.contentEl.createDiv({ cls: "codeian-form" });
+		const promptHeaderEl = formEl.createDiv({ cls: "codeian-section-header" });
+		promptHeaderEl.createEl("label", {
+			text: "Prompt",
+			cls: "codeian-label",
+			attr: { for: "codeian-prompt-input" },
+		});
+		promptHeaderEl.createDiv({ text: "Vault-aware request", cls: "codeian-meta" });
+		formEl.createDiv({
+			text: "Default settings run in read-only mode. Current note context requires confirmation before it is sent.",
+			cls: "codeian-safety-note",
+		});
 		this.promptEl = formEl.createEl("textarea", {
 			cls: "codeian-prompt",
 			attr: {
+				"aria-describedby": "codeian-prompt-help",
 				"aria-label": "Codex prompt",
+				id: "codeian-prompt-input",
 				placeholder: "Ask the agent to inspect, explain, or plan changes for this vault...",
 				rows: "8",
 			},
 		});
 		this.promptEl.value = this.lastPrompt;
+		formEl.createDiv({
+			text: "Keep prompts specific. Include the note only when the task needs the full context.",
+			cls: "codeian-help",
+			attr: { id: "codeian-prompt-help" },
+		});
 
 		const actionEl = formEl.createDiv({ cls: "codeian-actions" });
 		this.runButtonEl = actionEl.createEl("button", {
@@ -107,7 +131,11 @@ export class CodeianView extends ItemView {
 			this.setStatus("Ready");
 		});
 
-		this.outputEl = this.contentEl.createEl("pre", {
+		const outputPanelEl = this.contentEl.createDiv({ cls: "codeian-output-panel" });
+		const outputHeaderEl = outputPanelEl.createDiv({ cls: "codeian-section-header" });
+		outputHeaderEl.createDiv({ text: "Output", cls: "codeian-label" });
+		outputHeaderEl.createDiv({ text: "Live log", cls: "codeian-meta" });
+		this.outputEl = outputPanelEl.createEl("pre", {
 			cls: "codeian-output",
 			attr: {
 				"aria-label": "Codex output",
@@ -115,7 +143,7 @@ export class CodeianView extends ItemView {
 				tabindex: "0",
 			},
 		});
-		this.outputEl.createEl("code", { text: "Output will appear here." });
+		this.outputBodyEl = this.outputEl.createEl("code", { text: this.emptyOutputText });
 	}
 
 	private async runPrompt(): Promise<void> {
@@ -180,6 +208,7 @@ export class CodeianView extends ItemView {
 	}
 
 	private setRunning(running: boolean): void {
+		this.contentEl.toggleClass("codeian-is-running", running);
 		if (this.runButtonEl) {
 			this.runButtonEl.disabled = running;
 		}
@@ -203,19 +232,19 @@ export class CodeianView extends ItemView {
 	private setOutput(output: string): void {
 		if (!this.outputEl) return;
 		this.outputEl.empty();
-		this.outputEl.createEl("code", { text: output || "Output will appear here." });
+		this.outputBodyEl = this.outputEl.createEl("code", { text: output || this.emptyOutputText });
 	}
 
 	private appendOutput(chunk: string): void {
 		if (!this.outputEl) return;
 
-		const codeEl = this.outputEl.querySelector("code");
+		const codeEl = this.outputBodyEl ?? this.outputEl.querySelector("code");
 		if (!codeEl) {
-			this.outputEl.createEl("code", { text: chunk });
+			this.outputBodyEl = this.outputEl.createEl("code", { text: chunk });
 			return;
 		}
 
-		if (codeEl.textContent === "Output will appear here.") {
+		if (codeEl.textContent === this.emptyOutputText) {
 			codeEl.textContent = "";
 		}
 		codeEl.textContent += chunk;

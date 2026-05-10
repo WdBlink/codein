@@ -6,6 +6,7 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 export default tseslint.config(
 	{
 		ignores: [
+			".obsidian/**",
 			"main.js",
 			"node_modules",
 		],

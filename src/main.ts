@@ -1,5 +1,6 @@
 import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
 
+import { LEGACY_CODEX_ARGS } from "./defaults";
 import { CodeianSettingTab, DEFAULT_SETTINGS, CodeianSettings } from "./settings";
 import { CodeianView, VIEW_TYPE_CODEIAN } from "./view";
 
@@ -85,6 +86,10 @@ export default class CodeianPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<CodeianSettings>);
+		if (this.settings.codexExtraArgs === LEGACY_CODEX_ARGS) {
+			this.settings.codexExtraArgs = DEFAULT_SETTINGS.codexExtraArgs;
+			await this.saveSettings();
+		}
 	}
 
 	async saveSettings(): Promise<void> {
