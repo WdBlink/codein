@@ -1,4 +1,5 @@
 import { normalizePath } from "obsidian";
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "child_process";
 
 import type { CodeianSettings } from "./settings";
 
@@ -16,8 +17,17 @@ export interface CodexRunOptions {
 	onStderr: (chunk: string) => void;
 }
 
+export type CodexSpawn = (
+	command: string,
+	args: string[],
+	options: SpawnOptionsWithoutStdio,
+) => ChildProcessWithoutNullStreams;
+
 export class CodexRunner {
 	private abortController: AbortController | null = null;
+
+	constructor(private readonly spawnProcess?: CodexSpawn) {
+	}
 
 	isRunning(): boolean {
 		return this.abortController !== null;
@@ -45,13 +55,8 @@ export class CodexRunner {
 		this.abortController = new AbortController();
 
 		try {
-			const { spawn } = await import("child_process");
-			const args = [
-				...splitCommandLine(options.settings.codexExtraArgs || DEFAULT_CODEX_ARGS),
-				"-C",
-				cwd,
-				"-",
-			];
+			const spawn = this.spawnProcess ?? (await import("child_process")).spawn;
+			const args = buildCodexArgs(options.settings, cwd);
 
 			return await new Promise<CodexRunResult>((resolve, reject) => {
 				let stdout = "";
@@ -97,6 +102,36 @@ export class CodexRunner {
 }
 
 export const DEFAULT_CODEX_ARGS = "exec --ask-for-approval never --sandbox read-only --skip-git-repo-check";
+
+export function buildCodexArgs(settings: CodeianSettings, cwd: string): string[] {
+	return [
+		...splitCommandLine(settings.codexExtraArgs || DEFAULT_CODEX_ARGS),
+		"-C",
+		cwd,
+		"-",
+	];
+}
+
+export function getCodexSafetyWarning(settings: CodeianSettings): string | null {
+	const command = (settings.codexCommand || "codex").trim();
+	const commandName = command.split(/[\\/]/).pop()?.toLowerCase() ?? command.toLowerCase();
+	if (commandName !== "codex") {
+		return "The configured CLI command is not codex. Only continue if you trust this executable.";
+	}
+
+	const args = splitCommandLine(settings.codexExtraArgs || DEFAULT_CODEX_ARGS);
+	const sandboxIndex = args.indexOf("--sandbox");
+	if (sandboxIndex < 0 || args[sandboxIndex + 1] !== "read-only") {
+		return "The configured arguments do not include --sandbox read-only. The CLI may be able to modify files.";
+	}
+
+	const approvalIndex = args.indexOf("--ask-for-approval");
+	if (approvalIndex < 0 || args[approvalIndex + 1] !== "never") {
+		return "The configured arguments do not include --ask-for-approval never. The CLI may prompt or block unexpectedly.";
+	}
+
+	return null;
+}
 
 function resolveWorkingDirectory(settings: CodeianSettings, vaultPath: string | null): string | null {
 	const configured = settings.workingDirectory.trim();

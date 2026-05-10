@@ -24,6 +24,8 @@ npm install
 npm test
 npm run lint
 npm run build
+npm run verify:release
+npm run smoke:test-vault
 ```
 
 For watch mode:
@@ -55,11 +57,14 @@ Example test-vault plugin path:
 
 The default arguments run Codex non-interactively with no approval prompts and a read-only sandbox. Change them only when you intentionally want a different execution mode.
 
+Codeian warns before running when the configured command is not `codex` or when the arguments do not include the default read-only sandbox posture.
+
 ## Safety and privacy
 
 - Codeian does not run automatically on startup.
 - Codeian does not send note content when you open the sidebar.
 - The current-note command only inserts note content into the prompt box. You must press `Run` before anything is sent to the CLI.
+- If a prompt was created from the current note, Codeian asks for confirmation before sending it to Codex.
 - No telemetry is collected by this plugin.
 - Settings are stored with Obsidian plugin data APIs.
 - The first demo is intentionally desktop-only because mobile Obsidian cannot launch a local CLI process.
@@ -74,11 +79,15 @@ An installable release must include:
 
 The GitHub Actions workflow runs `npm test`, `npm run lint`, and `npm run build` on pushed commits and pull requests.
 
+`npm run verify:release` checks that the required release files exist and are non-empty. `npm run smoke:test-vault` copies them into a temporary isolated vault plugin directory and verifies the copied manifest.
+
 ## Known limits
 
 - The first demo uses `codex exec`, so each run is non-interactive.
 - Conversation history, multi-tab chat, inline editing, MCP management, and app-server integration are not part of this version.
 - GUI acceptance still needs to be performed inside an isolated Obsidian test vault.
+
+Use [docs/OBSIDIAN_SMOKE_CHECKLIST.md](docs/OBSIDIAN_SMOKE_CHECKLIST.md) for the manual Obsidian smoke pass.
 
 ## Reference
 

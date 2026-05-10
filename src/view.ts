@@ -1,6 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 
-import { CodexRunner } from "./codexRunner";
+import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import type CodeianPlugin from "./main";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
@@ -15,6 +15,7 @@ export class CodeianView extends ItemView {
 	private outputEl: HTMLElement | null = null;
 	private statusEl: HTMLElement | null = null;
 	private lastPrompt = "";
+	private promptContainsNoteContext = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
@@ -41,10 +42,12 @@ export class CodeianView extends ItemView {
 		this.runner.cancel();
 	}
 
-	setPrompt(prompt: string): void {
+	setPrompt(prompt: string, containsNoteContext = false): void {
 		if (!this.promptEl) {
 			this.render();
 		}
+		this.lastPrompt = prompt;
+		this.promptContainsNoteContext = containsNoteContext;
 		if (this.promptEl) {
 			this.promptEl.value = prompt;
 			this.promptEl.focus();
@@ -56,8 +59,16 @@ export class CodeianView extends ItemView {
 		this.contentEl.addClass("codeian-view");
 
 		const headerEl = this.contentEl.createDiv({ cls: "codeian-header" });
-		headerEl.createEl("h3", { text: "Codeian" });
-		this.statusEl = headerEl.createDiv({ cls: "codeian-status", text: "Ready" });
+		headerEl.createEl("h3", { text: "Codeian", cls: "codeian-title" });
+		this.statusEl = headerEl.createDiv({
+			cls: "codeian-status",
+			text: "Ready",
+			attr: {
+				"aria-atomic": "true",
+				"aria-live": "polite",
+				role: "status",
+			},
+		});
 
 		const formEl = this.contentEl.createDiv({ cls: "codeian-form" });
 		this.promptEl = formEl.createEl("textarea", {
@@ -79,7 +90,7 @@ export class CodeianView extends ItemView {
 			text: "Cancel",
 		});
 		this.clearButtonEl = actionEl.createEl("button", {
-			text: "Clear",
+			text: "Clear output",
 		});
 
 		this.cancelButtonEl.disabled = true;
@@ -96,7 +107,14 @@ export class CodeianView extends ItemView {
 			this.setStatus("Ready");
 		});
 
-		this.outputEl = this.contentEl.createEl("pre", { cls: "codeian-output" });
+		this.outputEl = this.contentEl.createEl("pre", {
+			cls: "codeian-output",
+			attr: {
+				"aria-label": "Codex output",
+				role: "log",
+				tabindex: "0",
+			},
+		});
 		this.outputEl.createEl("code", { text: "Output will appear here." });
 	}
 
@@ -114,6 +132,19 @@ export class CodeianView extends ItemView {
 			return;
 		}
 		this.lastPrompt = prompt;
+
+		if (this.promptContainsNoteContext && !window.confirm("This prompt includes the current note content. Send it to Codex now?")) {
+			this.setStatus("Send cancelled");
+			this.setOutput("The current note content was not sent. Review the prompt and press Run when ready.");
+			return;
+		}
+
+		const safetyWarning = getCodexSafetyWarning(this.plugin.settings);
+		if (safetyWarning && !window.confirm(`${safetyWarning}\n\nRun anyway?`)) {
+			this.setStatus("Run cancelled");
+			this.setOutput(`${safetyWarning}\n\nOpen Codeian settings to restore the default read-only Codex configuration.`);
+			return;
+		}
 
 		this.setRunning(true);
 		this.setStatus("Running Codex...");
@@ -141,7 +172,7 @@ export class CodeianView extends ItemView {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			this.setStatus("Failed");
-			this.appendOutput(message);
+			this.setOutput(formatFailureMessage(message));
 			new Notice(`Codeian failed: ${message}`);
 		} finally {
 			this.setRunning(false);
@@ -190,4 +221,20 @@ export class CodeianView extends ItemView {
 		codeEl.textContent += chunk;
 		this.outputEl.scrollTop = this.outputEl.scrollHeight;
 	}
+}
+
+function formatFailureMessage(message: string): string {
+	if (message.includes("ENOENT")) {
+		return `${message}\n\nCould not launch the configured CLI. Check Codeian settings and confirm the command is available on PATH.`;
+	}
+
+	if (message.includes("working directory")) {
+		return `${message}\n\nSet an absolute working directory in Codeian settings, or open Codeian from a desktop vault with a local path.`;
+	}
+
+	if (message.includes("Unclosed quote")) {
+		return `${message}\n\nCheck Codeian settings for unmatched quotes in the Codex arguments field.`;
+	}
+
+	return `${message}\n\nCheck Codeian settings, then try again.`;
 }

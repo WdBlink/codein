@@ -8,7 +8,9 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"lint": "eslint .",
-		"test": "vitest run"
+		"test": "vitest run",
+		"verify:release": "node scripts/verify-release-files.mjs",
+		"smoke:test-vault": "node scripts/smoke-test-vault.mjs"
 	},
 	"keywords": [
 		"obsidian",

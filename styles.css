@@ -12,20 +12,25 @@
 	display: flex;
 	justify-content: space-between;
 	gap: 8px;
+	min-width: 0;
 }
 
-.codeian-header h3 {
+.codeian-title {
+	flex: 0 1 auto;
 	font-size: 16px;
 	line-height: 1.3;
 	margin: 0;
+	min-width: 0;
 }
 
 .codeian-status {
 	color: var(--text-muted);
+	flex: 1 1 auto;
 	font-size: 12px;
 	line-height: 1.3;
+	min-width: 0;
+	overflow-wrap: anywhere;
 	text-align: right;
-	white-space: nowrap;
 }
 
 .codeian-form {
@@ -69,6 +74,11 @@
 	padding: 10px;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.codeian-output:focus-visible {
+	box-shadow: 0 0 0 2px var(--interactive-accent);
+	outline: none;
 }
 
 .codeian-output code {

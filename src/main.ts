@@ -47,7 +47,7 @@ export default class CodeianPlugin extends Plugin {
 							"```",
 							"",
 							"Task:",
-						].join("\n"));
+						].join("\n"), true);
 						new Notice("Current note context added.");
 					})();
 				}

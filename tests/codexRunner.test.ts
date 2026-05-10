@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 
-import { DEFAULT_CODEX_ARGS, splitCommandLine } from "../src/codexRunner";
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "node:child_process";
+import type { CodeianSettings } from "../src/settings";
+import {
+	buildCodexArgs,
+	CodexRunner,
+	type CodexSpawn,
+	DEFAULT_CODEX_ARGS,
+	getCodexSafetyWarning,
+	splitCommandLine,
+} from "../src/codexRunner";
+
+const SETTINGS: CodeianSettings = {
+	codexCommand: "codex",
+	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	workingDirectory: "",
+};
 
 describe("splitCommandLine", () => {
 	it("splits basic whitespace-delimited arguments", () => {
@@ -62,3 +79,121 @@ describe("splitCommandLine", () => {
 		]);
 	});
 });
+
+describe("buildCodexArgs", () => {
+	it("appends working directory and stdin prompt marker", () => {
+		expect(buildCodexArgs(SETTINGS, "/tmp/vault")).toEqual([
+			"exec",
+			"--ask-for-approval",
+			"never",
+			"--sandbox",
+			"read-only",
+			"--skip-git-repo-check",
+			"-C",
+			"/tmp/vault",
+			"-",
+		]);
+	});
+});
+
+describe("getCodexSafetyWarning", () => {
+	it("accepts the default read-only configuration", () => {
+		expect(getCodexSafetyWarning(SETTINGS)).toBeNull();
+	});
+
+	it("warns when the command is not codex", () => {
+		expect(getCodexSafetyWarning({ ...SETTINGS, codexCommand: "node" })).toContain("not codex");
+	});
+
+	it("warns when sandbox is not read-only", () => {
+		expect(getCodexSafetyWarning({ ...SETTINGS, codexExtraArgs: "exec --sandbox danger-full-access" })).toContain("read-only");
+	});
+});
+
+describe("CodexRunner", () => {
+	it("spawns the configured command with cwd, streams output, and writes prompt to stdin", async () => {
+		const calls: SpawnCall[] = [];
+		const spawn = createFakeSpawn(calls, (child) => {
+			child.stdout.write("out");
+			child.stderr.write("err");
+			child.emit("close", 0);
+		});
+		const stdout: string[] = [];
+		const stderr: string[] = [];
+
+		const result = await new CodexRunner(spawn).run({
+			prompt: " explain ",
+			settings: SETTINGS,
+			vaultPath: "/tmp/vault",
+			onStdout: (chunk) => stdout.push(chunk),
+			onStderr: (chunk) => stderr.push(chunk),
+		});
+
+		expect(result).toEqual({ code: 0, stdout: "out", stderr: "err" });
+		expect(stdout).toEqual(["out"]);
+		expect(stderr).toEqual(["err"]);
+		expect(calls[0]?.command).toBe("codex");
+		expect(calls[0]?.args.slice(-3)).toEqual(["-C", "/tmp/vault", "-"]);
+		expect(calls[0]?.options.cwd).toBe("/tmp/vault");
+		expect(calls[0]?.stdin).toBe("explain");
+	});
+
+	it("returns nonzero exit codes without throwing", async () => {
+		const spawn = createFakeSpawn([], (child) => {
+			child.stderr.write("bad args");
+			child.emit("close", 2);
+		});
+
+		const result = await new CodexRunner(spawn).run({
+			prompt: "run",
+			settings: SETTINGS,
+			vaultPath: "/tmp/vault",
+			onStdout: () => undefined,
+			onStderr: () => undefined,
+		});
+
+		expect(result.code).toBe(2);
+		expect(result.stderr).toBe("bad args");
+	});
+
+	it("rejects missing command errors", async () => {
+		const spawn = createFakeSpawn([], (child) => {
+			child.emit("error", new Error("spawn codex ENOENT"));
+		});
+
+		await expect(new CodexRunner(spawn).run({
+			prompt: "run",
+			settings: SETTINGS,
+			vaultPath: "/tmp/vault",
+			onStdout: () => undefined,
+			onStderr: () => undefined,
+		})).rejects.toThrow("ENOENT");
+	});
+});
+
+interface SpawnCall {
+	command: string;
+	args: string[];
+	options: SpawnOptionsWithoutStdio;
+	stdin: string;
+}
+
+function createFakeSpawn(
+	calls: SpawnCall[],
+	afterSpawn: (child: ChildProcessWithoutNullStreams) => void,
+): CodexSpawn {
+	return (command, args, options) => {
+		const stdin = new PassThrough();
+		const child = new EventEmitter() as ChildProcessWithoutNullStreams;
+		child.stdin = stdin;
+		child.stdout = new PassThrough();
+		child.stderr = new PassThrough();
+		const call: SpawnCall = { command, args, options, stdin: "" };
+		calls.push(call);
+		stdin.on("data", (chunk: Buffer) => {
+			call.stdin += chunk.toString();
+		});
+		setTimeout(() => afterSpawn(child), 0);
+		return child;
+	};
+}
