@@ -1,33 +1,31 @@
 .codeian-view {
-	--codeian-accent-soft: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	--codeian-accent-soft: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
 	--codeian-border: var(--background-modifier-border);
-	--codeian-surface: color-mix(in srgb, var(--background-secondary) 82%, var(--background-primary));
-	--codeian-surface-strong: color-mix(in srgb, var(--background-secondary) 68%, var(--background-primary));
+	--codeian-message-user: color-mix(in srgb, var(--background-secondary) 76%, var(--background-primary));
 
 	display: flex;
 	flex-direction: column;
-	gap: 14px;
 	height: 100%;
 	min-width: 0;
-	padding: 14px;
+	padding: 12px;
 }
 
 .codeian-header {
 	align-items: center;
-	border-bottom: 1px solid var(--codeian-border);
 	display: flex;
-	gap: 12px;
+	flex: 0 0 auto;
+	gap: 10px;
 	min-width: 0;
-	padding-bottom: 12px;
+	padding: 0 0 12px;
 }
 
 .codeian-title-group {
-	flex: 0 1 auto;
+	flex: 1 1 auto;
 	min-width: 0;
 }
 
 .codeian-title {
-	font-size: 16px;
+	font-size: 14px;
 	font-weight: 650;
 	letter-spacing: 0;
 	line-height: 1.3;
@@ -39,29 +37,32 @@
 	font-size: 11px;
 	line-height: 1.35;
 	margin-top: 2px;
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .codeian-header-actions {
+	align-items: center;
 	display: flex;
 	flex: 0 0 auto;
 	gap: 4px;
 }
 
-.codeian-icon-button {
+.codeian-header-button {
 	align-items: center;
 	display: inline-flex;
 	font-size: 14px;
-	height: 28px;
+	height: 24px;
 	justify-content: center;
 	line-height: 1;
-	width: 28px;
+	width: 24px;
 }
 
 .codeian-status-wrap {
 	align-items: center;
 	display: flex;
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	gap: 6px;
 	justify-content: flex-end;
 	min-width: 0;
@@ -78,259 +79,325 @@
 
 .codeian-status {
 	color: var(--text-muted);
-	font-size: 12px;
+	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	line-height: 1.3;
-	min-width: 0;
-	overflow-wrap: anywhere;
-	text-align: right;
-}
-
-.codeian-session-strip {
-	align-items: center;
-	background: var(--codeian-surface);
-	border: 1px solid var(--codeian-border);
-	border-radius: 6px;
-	display: flex;
-	gap: 10px;
-	justify-content: space-between;
-	min-width: 0;
-	padding: 7px 9px;
-}
-
-.codeian-session-title {
-	color: var(--text-normal);
-	font-size: 12px;
-	font-weight: 600;
-	line-height: 1.35;
-	min-width: 0;
+	max-width: 116px;
 	overflow: hidden;
+	text-align: right;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.codeian-session-meta {
-	color: var(--text-muted);
-	flex: 0 0 auto;
-	font-size: 11px;
-	line-height: 1.35;
-}
-
-.codeian-form {
+.codeian-messages-wrapper {
 	display: flex;
-	flex: 0 0 auto;
+	flex: 1 1 auto;
 	flex-direction: column;
-	gap: 8px;
+	min-height: 0;
+	overflow: hidden;
+	position: relative;
 }
 
-.codeian-section-header {
-	align-items: baseline;
+.codeian-messages {
 	display: flex;
-	gap: 8px;
-	justify-content: space-between;
-	min-width: 0;
+	flex: 1 1 auto;
+	flex-direction: column;
+	gap: 12px;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 12px 0;
+	scrollbar-gutter: stable;
 }
 
-.codeian-label {
-	color: var(--text-normal);
-	font-size: 12px;
-	font-weight: 650;
-	letter-spacing: 0;
-	line-height: 1.3;
+.codeian-messages:focus-visible {
+	outline: none;
 }
 
-.codeian-meta,
-.codeian-help {
-	color: var(--text-muted);
-	font-size: 11px;
-	line-height: 1.35;
-	overflow-wrap: anywhere;
-	text-align: right;
-}
-
-.codeian-help {
-	text-align: left;
-}
-
-.codeian-safety-note {
-	background: var(--codeian-surface);
-	border: 1px solid var(--codeian-border);
-	border-left: 3px solid var(--interactive-accent);
-	border-radius: 6px;
-	color: var(--text-muted);
-	font-size: 12px;
-	line-height: 1.45;
-	padding: 8px 10px;
-}
-
-.codeian-command-hints {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-}
-
-.codeian-command-pill {
+.codeian-welcome {
 	align-items: center;
-	background: var(--codeian-surface);
-	border: 1px solid var(--codeian-border);
-	border-radius: 6px;
+	display: flex;
+	flex: 1 1 auto;
+	justify-content: center;
+	min-height: 180px;
+	padding: 20px;
+	text-align: center;
+}
+
+.codeian-welcome-greeting {
 	color: var(--text-muted);
-	display: inline-flex;
-	font-size: 11px;
-	gap: 5px;
-	line-height: 1.3;
-	padding: 4px 7px;
+	font-size: 26px;
+	font-weight: 300;
+	letter-spacing: 0;
+	line-height: 1.2;
 }
 
-.codeian-command-token {
+.codeian-message {
+	max-width: 95%;
+	min-width: 0;
+	overflow-wrap: anywhere;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.codeian-message-user {
+	align-self: flex-end;
+	background: var(--codeian-message-user);
+	border-end-end-radius: 4px;
+	border-radius: 8px;
 	color: var(--text-normal);
-	font-family: var(--font-monospace);
-	font-weight: 700;
+	padding: 10px 12px;
 }
 
-.codeian-prompt {
-	background: var(--background-primary);
-	border-color: var(--codeian-border);
-	border-radius: 6px;
-	line-height: 1.45;
-	min-height: 104px;
-	padding: 10px;
-	resize: vertical;
-	transition:
-		border-color 120ms ease,
-		box-shadow 120ms ease,
-		opacity 120ms ease;
+.codeian-message-assistant {
+	align-self: stretch;
+	background: transparent;
+	color: var(--text-normal);
+	max-width: 100%;
+	padding: 2px 0;
 	width: 100%;
 }
 
-.codeian-prompt:hover:not(:disabled) {
-	border-color: var(--background-modifier-border-hover);
+.codeian-message-system {
+	align-self: center;
+	color: var(--text-muted);
+	font-size: 12px;
+	max-width: 100%;
+	text-align: center;
 }
 
-.codeian-prompt:focus-visible,
-.codeian-actions button:focus-visible {
-	box-shadow: 0 0 0 2px var(--codeian-accent-soft);
-	outline: none;
+.codeian-message-content {
+	font-size: 13px;
+	line-height: 1.5;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.codeian-message-meta {
+	color: var(--text-muted);
+	font-size: 11px;
+	line-height: 1.35;
+	margin-top: 6px;
+	min-height: 0;
+}
+
+.codeian-thinking {
+	color: var(--interactive-accent);
+	font-style: italic;
+	animation: codeian-thinking-pulse 1.4s ease-in-out infinite;
+}
+
+.codeian-input-container {
+	flex: 0 0 auto;
+	padding-top: 12px;
+}
+
+.codeian-composer-box {
+	background: var(--background-primary);
+	border: 1px solid var(--codeian-border);
+	border-radius: 6px;
+	display: flex;
+	flex-direction: column;
+	min-height: 132px;
+	transition:
+		border-color 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.codeian-composer-box:focus-within {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--codeian-accent-soft);
+}
+
+.codeian-prompt {
+	background: transparent !important;
+	border: none !important;
+	border-radius: 6px;
+	box-shadow: none !important;
+	color: var(--text-normal);
+	flex: 1 1 auto;
+	font-family: inherit;
+	font-size: 14px;
+	line-height: 1.4;
+	min-height: 72px;
+	padding: 10px;
+	resize: none;
+	width: 100%;
+}
+
+.codeian-prompt:hover,
+.codeian-prompt:focus,
+.codeian-prompt:focus-visible {
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	outline: none !important;
+}
+
+.codeian-prompt::placeholder {
+	color: var(--text-muted);
 }
 
 .codeian-prompt-running {
 	opacity: 0.82;
 }
 
-.codeian-actions {
+.codeian-input-toolbar {
+	align-items: center;
 	display: flex;
-	flex-wrap: wrap;
+	flex: 0 0 auto;
 	gap: 8px;
-	padding-top: 2px;
+	justify-content: space-between;
+	min-width: 0;
+	padding: 4px 6px 6px;
 }
 
-.codeian-actions button {
-	border-radius: 6px;
-	min-height: 30px;
+.codeian-picker-group {
+	align-items: center;
+	display: flex;
+	flex: 1 1 auto;
+	gap: 6px;
+	min-width: 0;
+}
+
+.codeian-selector {
+	position: relative;
+}
+
+.codeian-selector-button {
+	align-items: center;
+	border-radius: 4px;
+	color: var(--interactive-accent);
+	cursor: pointer;
+	display: flex;
+	font-size: 11px;
+	gap: 4px;
+	line-height: 1.2;
+	min-height: 22px;
+	padding: 3px 7px;
+	white-space: nowrap;
+}
+
+.codeian-selector-button:hover,
+.codeian-selector-button:focus-visible {
+	background: var(--background-modifier-hover);
+	outline: none;
+}
+
+.codeian-selector-prefix {
+	color: var(--text-muted);
+}
+
+.codeian-selector-label {
+	font-weight: 550;
+}
+
+.codeian-selector-dropdown {
+	background: var(--background-secondary);
+	border: 1px solid var(--codeian-border);
+	border-radius: 4px;
+	bottom: 100%;
+	box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.15);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	left: 0;
+	margin-bottom: 0;
+	min-width: max-content;
+	opacity: 0;
+	padding: 4px;
+	position: absolute;
 	transition:
-		background-color 120ms ease,
-		border-color 120ms ease,
 		opacity 120ms ease,
+		visibility 120ms ease;
+	visibility: hidden;
+	z-index: 20;
+}
+
+.codeian-selector:hover .codeian-selector-dropdown,
+.codeian-selector:focus-within .codeian-selector-dropdown,
+.codeian-selector.is-open .codeian-selector-dropdown {
+	opacity: 1;
+	visibility: visible;
+}
+
+.codeian-selector-group {
+	color: var(--text-faint);
+	font-size: 8px;
+	font-weight: 650;
+	letter-spacing: 0.05em;
+	padding: 3px 8px;
+	pointer-events: none;
+	text-transform: uppercase;
+}
+
+.codeian-selector-option {
+	border-radius: 3px;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 1.25;
+	padding: 4px 8px;
+	transition:
+		background 100ms ease,
+		color 100ms ease;
+	white-space: nowrap;
+}
+
+.codeian-selector-option:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.codeian-selector-option.selected {
+	background: var(--codeian-accent-soft);
+	color: var(--interactive-accent);
+	font-weight: 550;
+}
+
+.codeian-actions {
+	align-items: center;
+	display: flex;
+	flex: 0 0 auto;
+	gap: 4px;
+}
+
+.codeian-action-button {
+	background: transparent;
+	border: 0;
+	border-radius: 4px;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 1.2;
+	min-height: 24px;
+	padding: 3px 8px;
+	transition:
+		background 120ms ease,
+		color 120ms ease,
 		transform 120ms ease;
 }
 
-.codeian-actions button:hover:not(:disabled) {
-	transform: translateY(-1px);
-}
-
-.codeian-actions button:active:not(:disabled) {
-	transform: translateY(0);
-}
-
-.codeian-output-panel {
-	display: flex;
-	flex: 1 1 auto;
-	flex-direction: column;
-	gap: 8px;
-	min-height: 160px;
-}
-
-.codeian-output {
-	background: var(--codeian-surface-strong);
-	border: 1px solid var(--codeian-border);
-	border-radius: 6px;
-	flex: 1 1 auto;
-	font-size: 12px;
-	font-variant-numeric: tabular-nums;
-	line-height: 1.5;
-	margin: 0;
-	min-height: 120px;
-	overflow: auto;
-	padding: 12px;
-	scrollbar-gutter: stable;
-	transition:
-		border-color 120ms ease,
-		box-shadow 120ms ease;
-	white-space: pre-wrap;
-	word-break: break-word;
-}
-
-.codeian-output:hover {
-	border-color: var(--background-modifier-border-hover);
-}
-
-.codeian-output:focus-visible {
-	box-shadow: 0 0 0 2px var(--codeian-accent-soft);
-	outline: none;
-}
-
-.codeian-output code {
+.codeian-action-button:hover:not(:disabled),
+.codeian-action-button:focus-visible {
+	background: var(--background-modifier-hover);
 	color: var(--text-normal);
-	font-family: var(--font-monospace);
-	white-space: pre-wrap;
-}
-
-.codeian-run-details {
-	background: var(--codeian-surface);
-	border: 1px solid var(--codeian-border);
-	border-radius: 6px;
-	color: var(--text-muted);
-	flex: 0 0 auto;
-	font-size: 11px;
-	line-height: 1.4;
-	overflow: hidden;
-}
-
-.codeian-run-details[open] {
-	max-height: min(260px, 36vh);
-}
-
-.codeian-run-details summary {
-	cursor: pointer;
-	font-weight: 600;
-	list-style-position: inside;
-	padding: 7px 9px;
-}
-
-.codeian-run-details summary:focus-visible,
-.codeian-raw-output:focus-visible {
-	box-shadow: 0 0 0 2px var(--codeian-accent-soft);
 	outline: none;
 }
 
-.codeian-raw-output {
-	background: var(--background-primary);
-	border-top: 1px solid var(--codeian-border);
-	font-size: 11px;
-	line-height: 1.45;
-	margin: 0;
-	max-height: 205px;
-	overflow: auto;
-	padding: 9px;
-	scrollbar-gutter: stable;
-	white-space: pre-wrap;
-	word-break: break-word;
+.codeian-action-button:active:not(:disabled) {
+	transform: translateY(1px);
 }
 
-.codeian-raw-output code {
-	color: var(--text-muted);
-	font-family: var(--font-monospace);
-	white-space: pre-wrap;
+.codeian-run-button {
+	color: var(--interactive-accent);
+	font-weight: 600;
+}
+
+.codeian-action-button:disabled {
+	color: var(--text-faint);
+	cursor: default;
+	opacity: 0.7;
 }
 
 .codeian-is-running .codeian-status-dot {
@@ -350,26 +417,31 @@
 	}
 }
 
+@keyframes codeian-thinking-pulse {
+	0%,
+	100% {
+		opacity: 0.55;
+	}
+
+	50% {
+		opacity: 1;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
-	.codeian-actions button,
+	.codeian-action-button,
+	.codeian-composer-box,
 	.codeian-is-running .codeian-status-dot,
-	.codeian-output,
-	.codeian-prompt,
-	.codeian-raw-output {
+	.codeian-thinking {
 		animation: none;
 		transition: none;
 	}
 }
 
 @media (max-width: 320px) {
-	.codeian-header,
-	.codeian-section-header {
+	.codeian-header {
 		align-items: flex-start;
-		flex-direction: column;
-	}
-
-	.codeian-header-actions {
-		width: 100%;
+		flex-wrap: wrap;
 	}
 
 	.codeian-status-wrap {
@@ -377,7 +449,13 @@
 		width: 100%;
 	}
 
-	.codeian-meta {
-		text-align: left;
+	.codeian-input-toolbar {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.codeian-actions {
+		justify-content: flex-end;
+		width: 100%;
 	}
 }

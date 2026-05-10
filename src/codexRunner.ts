@@ -178,8 +178,18 @@ export async function testCodexCli(
 }
 
 export function buildCodexArgs(settings: CodeianSettings, cwd: string): string[] {
+	const args = splitCommandLine(settings.codexExtraArgs || DEFAULT_CODEX_ARGS);
+	const execIndex = args.indexOf("exec");
+	const structuredArgs = execIndex >= 0
+		? withStructuredOutputArgs(args)
+		: args;
+	const model = settings.codexModel.trim();
+	const effort = settings.codexEffort.trim();
+
 	return [
-		...splitCommandLine(settings.codexExtraArgs || DEFAULT_CODEX_ARGS),
+		...structuredArgs,
+		...(model ? ["--model", model] : []),
+		...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : []),
 		"-C",
 		cwd,
 		"-",
@@ -300,4 +310,23 @@ export function splitCommandLine(input: string): string[] {
 	}
 
 	return args;
+}
+
+function withStructuredOutputArgs(args: string[]): string[] {
+	let next = args.includes("--json") ? args : insertAfterExec(args, "--json");
+	if (!next.includes("--color")) {
+		next = insertAfterExec(next, "--color", "never");
+	}
+	return next;
+}
+
+function insertAfterExec(args: string[], ...additions: string[]): string[] {
+	const execIndex = args.indexOf("exec");
+	if (execIndex < 0) {
+		return args;
+	}
+
+	const next = [...args];
+	next.splice(execIndex + 1, 0, ...additions);
+	return next;
 }

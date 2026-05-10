@@ -7,6 +7,8 @@ import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "../src/
 const SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	codexEffort: "medium",
+	codexModel: "gpt-5.4-mini",
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",

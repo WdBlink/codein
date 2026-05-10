@@ -7,6 +7,8 @@ import { DEFAULT_CODEX_ARGS } from "./defaults";
 export interface CodeianSettings {
 	codexCommand: string;
 	codexExtraArgs: string;
+	codexEffort: string;
+	codexModel: string;
 	defaultPrompt: string;
 	workingDirectory: string;
 	lastPrompt: string;
@@ -18,6 +20,8 @@ export interface CodeianSettings {
 export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	codexEffort: "medium",
+	codexModel: "gpt-5.4-mini",
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
@@ -71,6 +75,34 @@ export class CodeianSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.workingDirectory)
 				.onChange(async (value) => {
 					this.plugin.settings.workingDirectory = value.trim();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Default model")
+			.setDesc("Model used by new sidebar runs. The sidebar selector can change this quickly.")
+			.addDropdown((dropdown) => dropdown
+				.addOption("gpt-5.4-mini", "Mini model")
+				.addOption("gpt-5.5", "Latest model")
+				.addOption("gpt-5.4", "Balanced model")
+				.addOption("gpt-5.3-codex-spark", "Spark model")
+				.setValue(this.plugin.settings.codexModel)
+				.onChange(async (value) => {
+					this.plugin.settings.codexModel = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Default effort")
+			.setDesc("Reasoning effort used by new sidebar runs.")
+			.addDropdown((dropdown) => dropdown
+				.addOption("low", "Low")
+				.addOption("medium", "Medium")
+				.addOption("high", "High")
+				.addOption("xhigh", "Extra high")
+				.setValue(this.plugin.settings.codexEffort)
+				.onChange(async (value) => {
+					this.plugin.settings.codexEffort = value;
 					await this.plugin.saveSettings();
 				}));
 

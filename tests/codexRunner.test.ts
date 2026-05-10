@@ -17,6 +17,8 @@ import {
 const SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	codexEffort: "medium",
+	codexModel: "gpt-5.4-mini",
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
@@ -87,18 +89,32 @@ describe("splitCommandLine", () => {
 });
 
 describe("buildCodexArgs", () => {
-	it("appends working directory and stdin prompt marker", () => {
+	it("adds structured output, model, effort, working directory, and stdin prompt marker", () => {
 		expect(buildCodexArgs(SETTINGS, "/tmp/vault")).toEqual([
 			"--ask-for-approval",
 			"never",
 			"exec",
+			"--color",
+			"never",
+			"--json",
 			"--sandbox",
 			"read-only",
 			"--skip-git-repo-check",
+			"--model",
+			"gpt-5.4-mini",
+			"-c",
+			"model_reasoning_effort=\"medium\"",
 			"-C",
 			"/tmp/vault",
 			"-",
 		]);
+	});
+
+	it("does not duplicate structured output args already present in custom args", () => {
+		expect(buildCodexArgs({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --json --color never --sandbox read-only",
+		}, "/tmp/vault").filter((arg) => arg === "--json")).toHaveLength(1);
 	});
 });
 
