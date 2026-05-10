@@ -14,7 +14,7 @@ export interface PromptTokenContext {
 	query: string;
 }
 
-export const PROMPT_SUGGESTIONS: readonly PromptSuggestion[] = [
+export const BUILT_IN_PROMPT_SUGGESTIONS: readonly PromptSuggestion[] = [
 	{ trigger: "/", value: "/help", label: "/help", detail: "Show Codex command help" },
 	{ trigger: "/", value: "/status", label: "/status", detail: "Inspect current run status" },
 	{ trigger: "/", value: "/model", label: "/model", detail: "Review or switch model context" },
@@ -66,13 +66,18 @@ export function getPromptTokenContext(value: string, caret: number): PromptToken
 	};
 }
 
-export function getPromptSuggestions(value: string, caret: number, limit = 6): PromptSuggestion[] {
+export function getPromptSuggestions(
+	value: string,
+	caret: number,
+	limit = 6,
+	suggestions: readonly PromptSuggestion[] = BUILT_IN_PROMPT_SUGGESTIONS,
+): PromptSuggestion[] {
 	const context = getPromptTokenContext(value, caret);
 	if (!context) {
 		return [];
 	}
 
-	const matches = PROMPT_SUGGESTIONS.filter((suggestion) => {
+	const matches = suggestions.filter((suggestion) => {
 		if (suggestion.trigger !== context.trigger) {
 			return false;
 		}

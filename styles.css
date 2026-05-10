@@ -312,19 +312,23 @@
 
 .codeian-suggestion-label {
 	color: var(--interactive-accent);
-	flex: 0 0 auto;
+	flex: 1 1 auto;
 	font-family: var(--font-monospace);
 	font-size: 12px;
 	font-weight: 600;
 	line-height: 1.2;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 .codeian-suggestion-detail {
 	color: var(--text-muted);
-	flex: 1 1 auto;
+	flex: 0 1 48%;
 	font-size: 11px;
 	line-height: 1.25;
+	max-width: 48%;
 	min-width: 0;
 	overflow: hidden;
 	text-align: right;

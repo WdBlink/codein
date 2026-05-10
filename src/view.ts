@@ -12,9 +12,9 @@ import { shouldRunPromptFromKey } from "./keyboard";
 import type CodeianPlugin from "./main";
 import {
 	applyPromptSuggestion,
-	getPromptSuggestions,
 	type PromptSuggestion,
 } from "./promptSuggestions";
+import { PromptSuggestionRegistry } from "./promptSuggestionRegistry";
 import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "./sessionState";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
@@ -51,6 +51,7 @@ export class CodeianView extends ItemView {
 	private suggestionsEl: HTMLElement | null = null;
 	private promptSuggestions: PromptSuggestion[] = [];
 	private activeSuggestionIndex = 0;
+	private suggestionRegistry = new PromptSuggestionRegistry();
 	private jsonState: CodexJsonStreamState = createCodexJsonStreamState();
 	private diagnosticText = "";
 	private lastPrompt: string;
@@ -78,6 +79,7 @@ export class CodeianView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.render();
+		void this.refreshPromptSuggestionRegistry();
 	}
 
 	async onClose(): Promise<void> {
@@ -183,6 +185,9 @@ export class CodeianView extends ItemView {
 		});
 		this.promptEl.addEventListener("click", () => {
 			this.updatePromptSuggestions();
+		});
+		this.promptEl.addEventListener("focus", () => {
+			void this.refreshPromptSuggestionRegistry();
 		});
 		this.promptEl.addEventListener("keyup", (event) => {
 			if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") {
@@ -589,7 +594,7 @@ export class CodeianView extends ItemView {
 			return;
 		}
 
-		this.promptSuggestions = getPromptSuggestions(promptEl.value, promptEl.selectionStart);
+		this.promptSuggestions = this.suggestionRegistry.getSuggestions(promptEl.value, promptEl.selectionStart);
 		if (this.promptSuggestions.length === 0) {
 			this.hidePromptSuggestions();
 			return;
@@ -678,6 +683,14 @@ export class CodeianView extends ItemView {
 		this.promptContainsNoteContext = false;
 		this.plugin.settings.lastPromptContainsNoteContext = false;
 		this.hidePromptSuggestions();
+	}
+
+	private async refreshPromptSuggestionRegistry(): Promise<void> {
+		await this.suggestionRegistry.refresh(this.plugin.settings);
+		if (this.suggestionsEl?.hasClass("is-visible")) {
+			return;
+		}
+		this.updatePromptSuggestions();
 	}
 
 	private getRunMetadata(): string {
