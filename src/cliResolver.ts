@@ -1,4 +1,5 @@
-import { normalizePath } from "obsidian";
+import * as fs from "fs";
+import * as path from "path";
 
 import type { CodeianSettings } from "./settings";
 
@@ -52,7 +53,7 @@ export async function resolveCliCommand(
 
 	if (hasPathSeparator(rawCommand)) {
 		return {
-			command: normalizePath(rawCommand),
+			command: normalizeFileSystemPath(rawCommand),
 			env,
 			path: enhancedPath,
 			wasResolvedFromPath: false,
@@ -127,14 +128,12 @@ function getProcessEnv(): Record<string, string> {
 	);
 }
 
-async function joinPath(dir: string, command: string): Promise<string> {
-	const path = await import("path");
-	return normalizePath(path.join(dir, command));
+function joinPath(dir: string, command: string): string {
+	return normalizeFileSystemPath(path.join(dir, command));
 }
 
 async function defaultExecutableExists(filePath: string): Promise<boolean> {
 	try {
-		const fs = await import("fs");
 		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
 			return false;
 		}
@@ -146,4 +145,8 @@ async function defaultExecutableExists(filePath: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+export function normalizeFileSystemPath(filePath: string): string {
+	return path.normalize(filePath);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	getEnhancedPath,
+	normalizeFileSystemPath,
 	parsePathEntries,
 	resolveCliCommand,
 } from "../src/cliResolver";
@@ -70,5 +71,11 @@ describe("resolveCliCommand", () => {
 		expect(result.command).toBe("codex");
 		expect(result.wasResolvedFromPath).toBe(false);
 		expect(result.path).toContain("/usr/local/bin");
+	});
+});
+
+describe("normalizeFileSystemPath", () => {
+	it("preserves leading slashes for absolute system executable paths", () => {
+		expect(normalizeFileSystemPath("/opt/homebrew/bin/codex")).toBe("/opt/homebrew/bin/codex");
 	});
 });

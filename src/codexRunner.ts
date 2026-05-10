@@ -1,7 +1,7 @@
-import { normalizePath } from "obsidian";
+import { spawn as nodeSpawn } from "child_process";
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "child_process";
 
-import { resolveCliCommand, type CliSelfTestResult } from "./cliResolver";
+import { normalizeFileSystemPath, resolveCliCommand, type CliSelfTestResult } from "./cliResolver";
 import type { CodeianSettings } from "./settings";
 import { DEFAULT_CODEX_ARGS } from "./defaults";
 
@@ -57,7 +57,7 @@ export class CodexRunner {
 		this.abortController = new AbortController();
 
 		try {
-			const spawn = this.spawnProcess ?? (await import("child_process")).spawn;
+			const spawn = this.spawnProcess ?? nodeSpawn;
 			const resolvedCommand = await resolveCliCommand(options.settings);
 			const args = buildCodexArgs(options.settings, cwd);
 
@@ -112,7 +112,7 @@ export async function testCodexCli(
 ): Promise<CliSelfTestResult> {
 	const cwd = resolveWorkingDirectory(settings, vaultPath) ?? vaultPath ?? "/";
 	const resolvedCommand = await resolveCliCommand(settings);
-	const spawn = spawnProcess ?? (await import("child_process")).spawn;
+	const spawn = spawnProcess ?? nodeSpawn;
 	const args = buildCodexArgs(settings, cwd);
 
 	return await new Promise<CliSelfTestResult>((resolve) => {
@@ -219,10 +219,10 @@ export function getCodexSafetyWarning(settings: CodeianSettings): string | null 
 function resolveWorkingDirectory(settings: CodeianSettings, vaultPath: string | null): string | null {
 	const configured = settings.workingDirectory.trim();
 	if (configured) {
-		return normalizePath(configured);
+		return normalizeFileSystemPath(configured);
 	}
 
-	return vaultPath ? normalizePath(vaultPath) : null;
+	return vaultPath ? normalizeFileSystemPath(vaultPath) : null;
 }
 
 function formatCliLaunchError(message: string, enhancedPath: string): string {

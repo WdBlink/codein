@@ -165,6 +165,24 @@ describe("CodexRunner", () => {
 		expect(calls[0]?.stdin).toBe("explain");
 	});
 
+	it("preserves absolute configured working directories for child_process", async () => {
+		const calls: SpawnCall[] = [];
+		const spawn = createFakeSpawn(calls, (child) => {
+			child.emit("close", 0);
+		});
+
+		await new CodexRunner(spawn).run({
+			prompt: "run",
+			settings: { ...SETTINGS, workingDirectory: "/Users/tester/Vault" },
+			vaultPath: "/tmp/vault",
+			onStdout: () => undefined,
+			onStderr: () => undefined,
+		});
+
+		expect(calls[0]?.args.slice(-3)).toEqual(["-C", "/Users/tester/Vault", "-"]);
+		expect(calls[0]?.options.cwd).toBe("/Users/tester/Vault");
+	});
+
 	it("returns nonzero exit codes without throwing", async () => {
 		const spawn = createFakeSpawn([], (child) => {
 			child.stderr.write("bad args");
