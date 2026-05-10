@@ -116,6 +116,31 @@ describe("buildCodexArgs", () => {
 			codexExtraArgs: "--ask-for-approval never exec --json --color never --sandbox read-only",
 		}, "/tmp/vault").filter((arg) => arg === "--json")).toHaveLength(1);
 	});
+
+	it("lets sidebar model and effort override managed values from custom args", () => {
+		expect(buildCodexArgs({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --model gpt-5 --sandbox read-only -c model_reasoning_effort=\"low\"",
+			codexEffort: "xhigh",
+			codexModel: "gpt-5.5",
+		}, "/tmp/vault")).toEqual([
+			"--ask-for-approval",
+			"never",
+			"exec",
+			"--color",
+			"never",
+			"--json",
+			"--sandbox",
+			"read-only",
+			"--model",
+			"gpt-5.5",
+			"-c",
+			"model_reasoning_effort=\"xhigh\"",
+			"-C",
+			"/tmp/vault",
+			"-",
+		]);
+	});
 });
 
 describe("getCodexSafetyWarning", () => {

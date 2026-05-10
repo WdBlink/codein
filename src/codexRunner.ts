@@ -183,11 +183,12 @@ export function buildCodexArgs(settings: CodeianSettings, cwd: string): string[]
 	const structuredArgs = execIndex >= 0
 		? withStructuredOutputArgs(args)
 		: args;
+	const baseArgs = withoutManagedCodexArgs(structuredArgs);
 	const model = settings.codexModel.trim();
 	const effort = settings.codexEffort.trim();
 
 	return [
-		...structuredArgs,
+		...baseArgs,
 		...(model ? ["--model", model] : []),
 		...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : []),
 		"-C",
@@ -329,4 +330,37 @@ function insertAfterExec(args: string[], ...additions: string[]): string[] {
 	const next = [...args];
 	next.splice(execIndex + 1, 0, ...additions);
 	return next;
+}
+
+function withoutManagedCodexArgs(args: string[]): string[] {
+	const next: string[] = [];
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index];
+		if (arg === undefined) {
+			continue;
+		}
+		const following = args[index + 1];
+
+		if (arg === "--model" || arg === "-m") {
+			index++;
+			continue;
+		}
+		if (arg.startsWith("--model=") || arg.startsWith("-m=")) {
+			continue;
+		}
+		if ((arg === "-c" || arg === "--config") && isManagedCodexConfig(following)) {
+			index++;
+			continue;
+		}
+		if (arg.startsWith("--config=") && isManagedCodexConfig(arg.slice("--config=".length))) {
+			continue;
+		}
+
+		next.push(arg);
+	}
+	return next;
+}
+
+function isManagedCodexConfig(value: string | undefined): boolean {
+	return typeof value === "string" && value.trim().startsWith("model_reasoning_effort=");
 }

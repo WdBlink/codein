@@ -255,9 +255,6 @@ export class CodeianView extends ItemView {
 			return;
 		}
 		this.lastPrompt = prompt;
-		if (!this.promptContainsNoteContext) {
-			await this.persistSessionState();
-		}
 
 		if (this.promptContainsNoteContext && !window.confirm("This prompt includes the current note content. Send it to Codex now?")) {
 			this.setStatus("Send cancelled");
@@ -271,7 +268,10 @@ export class CodeianView extends ItemView {
 		}
 
 		this.setRunning(true);
-		this.setStatus("Running Codex...");
+		this.clearComposer();
+		this.plugin.settings.lastOutput = "";
+		await this.persistSessionState(prompt);
+		this.setStatus(`Running · ${this.getRunMetadata()}`);
 		this.beginRunMessage(prompt);
 
 		try {
@@ -314,7 +314,7 @@ export class CodeianView extends ItemView {
 			new Notice(`Codeian failed: ${message}`);
 		} finally {
 			this.setRunning(false);
-			await this.persistSessionState();
+			await this.persistSessionState(prompt);
 		}
 	}
 
@@ -408,7 +408,7 @@ export class CodeianView extends ItemView {
 		message.contentEl.addClass("codeian-thinking");
 		this.currentAssistantContentEl = message.contentEl;
 		this.currentAssistantMetaEl = message.metaEl;
-		this.currentAssistantMetaEl?.setText("Streaming");
+		this.currentAssistantMetaEl?.setText(`Streaming · ${this.getRunMetadata()}`);
 		this.scrollMessagesToBottom();
 	}
 
@@ -442,7 +442,7 @@ export class CodeianView extends ItemView {
 			this.currentAssistantContentEl.removeClass("codeian-thinking");
 			this.currentAssistantContentEl.setText(content);
 		}
-		this.currentAssistantMetaEl?.setText("");
+		this.currentAssistantMetaEl?.setText(this.getRunMetadata());
 		this.plugin.settings.lastOutput = content;
 		this.scrollMessagesToBottom();
 	}
@@ -526,10 +526,24 @@ export class CodeianView extends ItemView {
 		void appWithSetting.setting?.openTabById(this.plugin.manifest.id);
 	}
 
-	private async persistSessionState(): Promise<void> {
+	private clearComposer(): void {
+		if (this.promptEl) {
+			this.promptEl.value = "";
+		}
+	}
+
+	private getRunMetadata(): string {
+		return `${this.getOptionLabel(MODEL_OPTIONS, this.plugin.settings.codexModel)} · ${this.getOptionLabel(EFFORT_OPTIONS, this.plugin.settings.codexEffort)}`;
+	}
+
+	private getOptionLabel<T extends string>(options: readonly { value: T; label: string }[], value: string): string {
+		return options.find((option) => option.value === value)?.label ?? value;
+	}
+
+	private async persistSessionState(promptOverride?: string): Promise<void> {
 		this.plugin.settings.lastPromptContainsNoteContext = this.promptContainsNoteContext;
 		const snapshot = buildPersistedSidebarState(
-			this.promptEl?.value ?? this.lastPrompt,
+			promptOverride ?? this.promptEl?.value ?? this.lastPrompt,
 			this.plugin.settings.lastOutput,
 			this.promptContainsNoteContext,
 		);

@@ -55,6 +55,14 @@ describe("resolveInitialSidebarPrompt", () => {
 		})).toBe("Saved");
 	});
 
+	it("starts from a blank composer after a completed run with no configured default prompt", () => {
+		expect(resolveInitialSidebarPrompt({
+			...SETTINGS,
+			lastOutput: "done",
+			lastPrompt: "Already sent",
+		})).toBe("");
+	});
+
 	it("does not restore note-context prompts", () => {
 		expect(resolveInitialSidebarPrompt({
 			...SETTINGS,

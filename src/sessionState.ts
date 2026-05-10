@@ -31,5 +31,9 @@ export function resolveInitialSidebarPrompt(settings: CodeianSettings): string {
 		return "";
 	}
 
+	if (settings.lastOutput) {
+		return settings.defaultPrompt || "";
+	}
+
 	return settings.lastPrompt || settings.defaultPrompt || "";
 }
