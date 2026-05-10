@@ -96,7 +96,7 @@ export class CodexRunner {
 	}
 }
 
-const DEFAULT_CODEX_ARGS = "exec --ask-for-approval never --sandbox read-only --skip-git-repo-check";
+export const DEFAULT_CODEX_ARGS = "exec --ask-for-approval never --sandbox read-only --skip-git-repo-check";
 
 function resolveWorkingDirectory(settings: CodeianSettings, vaultPath: string | null): string | null {
 	const configured = settings.workingDirectory.trim();
@@ -112,10 +112,12 @@ export function splitCommandLine(input: string): string[] {
 	let current = "";
 	let quote: "'" | "\"" | null = null;
 	let escaping = false;
+	let hasToken = false;
 
 	for (const char of input.trim()) {
 		if (escaping) {
 			current += char;
+			hasToken = true;
 			escaping = false;
 			continue;
 		}
@@ -130,35 +132,40 @@ export function splitCommandLine(input: string): string[] {
 				quote = null;
 			} else {
 				current += char;
+				hasToken = true;
 			}
 			continue;
 		}
 
 		if (char === "'" || char === "\"") {
 			quote = char;
+			hasToken = true;
 			continue;
 		}
 
 		if (/\s/.test(char)) {
-			if (current) {
+			if (hasToken) {
 				args.push(current);
 				current = "";
+				hasToken = false;
 			}
 			continue;
 		}
 
 		current += char;
+		hasToken = true;
 	}
 
 	if (escaping) {
 		current += "\\";
+		hasToken = true;
 	}
 
 	if (quote) {
 		throw new Error("Unclosed quote in CodeX arguments.");
 	}
 
-	if (current) {
+	if (hasToken) {
 		args.push(current);
 	}
 

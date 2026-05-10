@@ -24,4 +24,24 @@ describe("project metadata", () => {
 	it("declares the plugin as desktop-only for CLI execution", () => {
 		expect(manifest.isDesktopOnly).toBe(true);
 	});
+
+	it("declares required manifest identity fields", () => {
+		expect(manifest.id).toMatch(/^[a-z0-9][a-z0-9-]*$/);
+		expect(manifest.name.trim()).toBe("Codeian");
+		expect(manifest.description.trim().length).toBeGreaterThan(20);
+		expect(manifest.author.trim().length).toBeGreaterThan(0);
+	});
+
+	it("uses semver for package and manifest versions", () => {
+		expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+$/);
+		expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+	});
+
+	it("declares an Obsidian minimum app version", () => {
+		expect(manifest.minAppVersion).toMatch(/^\d+\.\d+\.\d+$/);
+	});
+
+	it("declares a Node runtime compatible with the test toolchain", () => {
+		expect(packageJson.engines.node).toBe(">=20.19.0");
+	});
 });
