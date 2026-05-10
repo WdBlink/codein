@@ -113,7 +113,7 @@ export async function testCodexCli(
 	const cwd = resolveWorkingDirectory(settings, vaultPath) ?? vaultPath ?? "/";
 	const resolvedCommand = await resolveCliCommand(settings);
 	const spawn = spawnProcess ?? nodeSpawn;
-	const args = buildCodexArgs(settings, cwd);
+	const args = ["--version"];
 
 	return await new Promise<CliSelfTestResult>((resolve) => {
 		let stdout = "";
@@ -129,12 +129,12 @@ export async function testCodexCli(
 			finish({
 				ok: false,
 				command: resolvedCommand.command,
-				message: "Codex CLI self-test timed out after 8 seconds.",
+				message: "Codex CLI self-test timed out after 4 seconds.",
 				stdout,
 				stderr,
 				code: null,
 			});
-		}, 8000);
+		}, 4000);
 		const finish = (result: CliSelfTestResult) => {
 			if (settled) return;
 			settled = true;
@@ -166,14 +166,13 @@ export async function testCodexCli(
 			finish({
 				ok: code === 0,
 				command: resolvedCommand.command,
-				message: code === 0 ? `Codex exec self-test passed: ${output || resolvedCommand.command}` : `Codex exec self-test exited with code ${code}.`,
+				message: code === 0 ? `Codex CLI self-test passed: ${output || resolvedCommand.command}` : `Codex CLI self-test exited with code ${code}.`,
 				stdout,
 				stderr,
 				code,
 			});
 		});
 
-		child.stdin.write("Reply with exactly: Codeian CLI self-test.");
 		child.stdin.end();
 	});
 }

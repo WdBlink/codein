@@ -217,18 +217,19 @@ describe("CodexRunner", () => {
 });
 
 describe("testCodexCli", () => {
-	it("uses the same exec argument shape as a real run and writes a stdin probe", async () => {
+	it("uses a fast CLI version probe", async () => {
 		const calls: SpawnCall[] = [];
 		const spawn = createFakeSpawn(calls, (child) => {
-			child.stdout.write("Codeian CLI self-test");
+			child.stdout.write("codex-cli 0.130.0");
 			child.emit("close", 0);
 		});
 
 		const result = await testCodexCli(SETTINGS, "/tmp/vault", spawn);
 
 		expect(result.ok).toBe(true);
-		expect(calls[0]?.args.slice(-3)).toEqual(["-C", "/tmp/vault", "-"]);
-		expect(calls[0]?.stdin).toBe("Reply with exactly: Codeian CLI self-test.");
+		expect(result.message).toContain("Codex CLI self-test passed");
+		expect(calls[0]?.args).toEqual(["--version"]);
+		expect(calls[0]?.stdin).toBe("");
 	});
 
 	it("reports launch errors with recovery guidance", async () => {
