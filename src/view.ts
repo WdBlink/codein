@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import {
@@ -10,6 +10,11 @@ import {
 } from "./codexOutput";
 import { shouldRunPromptFromKey } from "./keyboard";
 import type CodeianPlugin from "./main";
+import {
+	applyPromptSuggestion,
+	getPromptSuggestions,
+	type PromptSuggestion,
+} from "./promptSuggestions";
 import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "./sessionState";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
@@ -43,6 +48,9 @@ export class CodeianView extends ItemView {
 	private effortLabelEl: HTMLElement | null = null;
 	private currentAssistantContentEl: HTMLElement | null = null;
 	private currentAssistantMetaEl: HTMLElement | null = null;
+	private suggestionsEl: HTMLElement | null = null;
+	private promptSuggestions: PromptSuggestion[] = [];
+	private activeSuggestionIndex = 0;
 	private jsonState: CodexJsonStreamState = createCodexJsonStreamState();
 	private diagnosticText = "";
 	private lastPrompt: string;
@@ -90,6 +98,7 @@ export class CodeianView extends ItemView {
 		if (this.promptEl) {
 			this.promptEl.value = prompt;
 			this.promptEl.focus();
+			this.updatePromptSuggestions();
 		}
 		if (containsNoteContext) {
 			this.plugin.settings.lastPrompt = "";
@@ -157,13 +166,37 @@ export class CodeianView extends ItemView {
 			this.lastPrompt = this.promptEl?.value ?? "";
 			this.promptContainsNoteContext = false;
 			this.plugin.settings.lastPromptContainsNoteContext = false;
+			this.updatePromptSuggestions();
 		});
 		this.promptEl.addEventListener("keydown", (event) => {
+			if (this.handleSuggestionKey(event)) {
+				return;
+			}
 			if (!shouldRunPromptFromKey(event)) {
+				return;
+			}
+			if (this.runner.isRunning()) {
 				return;
 			}
 			event.preventDefault();
 			void this.runPrompt();
+		});
+		this.promptEl.addEventListener("click", () => {
+			this.updatePromptSuggestions();
+		});
+		this.promptEl.addEventListener("keyup", (event) => {
+			if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") {
+				this.updatePromptSuggestions();
+			}
+		});
+
+		this.suggestionsEl = inputWrapperEl.createDiv({
+			cls: "codeian-suggestions",
+			attr: {
+				"aria-hidden": "true",
+				role: "listbox",
+				"aria-label": "Codex suggestions",
+			},
 		});
 
 		const toolbarEl = inputWrapperEl.createDiv({ cls: "codeian-input-toolbar" });
@@ -427,7 +460,12 @@ export class CodeianView extends ItemView {
 		}
 
 		const messageEl = messagesEl.createDiv({ cls: `codeian-message codeian-message-${role}` });
-		const contentEl = messageEl.createDiv({ cls: "codeian-message-content", text: content });
+		const contentEl = messageEl.createDiv({ cls: "codeian-message-content" });
+		if (role === "assistant") {
+			this.renderMarkdownContent(contentEl, content);
+		} else {
+			contentEl.setText(content);
+		}
 		const metaEl = role === "assistant" ? messageEl.createDiv({ cls: "codeian-message-meta" }) : null;
 		this.scrollMessagesToBottom();
 		return { contentEl, metaEl };
@@ -440,11 +478,22 @@ export class CodeianView extends ItemView {
 			this.currentAssistantMetaEl = message.metaEl;
 		} else {
 			this.currentAssistantContentEl.removeClass("codeian-thinking");
-			this.currentAssistantContentEl.setText(content);
+			this.renderMarkdownContent(this.currentAssistantContentEl, content);
 		}
 		this.currentAssistantMetaEl?.setText(this.getRunMetadata());
 		this.plugin.settings.lastOutput = content;
 		this.scrollMessagesToBottom();
+	}
+
+	private renderMarkdownContent(contentEl: HTMLElement, content: string): void {
+		contentEl.empty();
+		void MarkdownRenderer.render(this.app, content, contentEl, this.getMarkdownSourcePath(), this)
+			.catch(() => {
+				contentEl.setText(content);
+			})
+			.finally(() => {
+				this.scrollMessagesToBottom();
+			});
 	}
 
 	private clearMessages(renderEmpty = true): void {
@@ -490,7 +539,6 @@ export class CodeianView extends ItemView {
 			this.newSessionButtonEl.disabled = running;
 		}
 		if (this.promptEl) {
-			this.promptEl.disabled = running;
 			this.promptEl.toggleClass("codeian-prompt-running", running);
 		}
 	}
@@ -509,6 +557,7 @@ export class CodeianView extends ItemView {
 		if (this.promptEl) {
 			this.promptEl.value = this.lastPrompt;
 			this.promptEl.focus();
+			this.updatePromptSuggestions();
 		}
 		this.clearMessages();
 		this.setStatus("Ready");
@@ -530,6 +579,105 @@ export class CodeianView extends ItemView {
 		if (this.promptEl) {
 			this.promptEl.value = "";
 		}
+		this.hidePromptSuggestions();
+	}
+
+	private updatePromptSuggestions(): void {
+		const promptEl = this.promptEl;
+		const suggestionsEl = this.suggestionsEl;
+		if (!promptEl || !suggestionsEl) {
+			return;
+		}
+
+		this.promptSuggestions = getPromptSuggestions(promptEl.value, promptEl.selectionStart);
+		if (this.promptSuggestions.length === 0) {
+			this.hidePromptSuggestions();
+			return;
+		}
+
+		this.activeSuggestionIndex = Math.min(this.activeSuggestionIndex, this.promptSuggestions.length - 1);
+		suggestionsEl.empty();
+		suggestionsEl.toggleClass("is-visible", true);
+		suggestionsEl.setAttr("aria-hidden", "false");
+
+		for (const [index, suggestion] of this.promptSuggestions.entries()) {
+			const optionEl = suggestionsEl.createDiv({
+				cls: `codeian-suggestion${index === this.activeSuggestionIndex ? " is-active" : ""}`,
+				attr: {
+					id: `codeian-suggestion-${index}`,
+					role: "option",
+					"aria-selected": String(index === this.activeSuggestionIndex),
+				},
+			});
+			optionEl.createSpan({ cls: "codeian-suggestion-label", text: suggestion.label });
+			optionEl.createSpan({ cls: "codeian-suggestion-detail", text: suggestion.detail });
+			optionEl.addEventListener("mousedown", (event) => {
+				event.preventDefault();
+				this.acceptPromptSuggestion(index);
+			});
+		}
+		promptEl.setAttr("aria-activedescendant", `codeian-suggestion-${this.activeSuggestionIndex}`);
+	}
+
+	private hidePromptSuggestions(): void {
+		this.promptSuggestions = [];
+		this.activeSuggestionIndex = 0;
+		this.suggestionsEl?.empty();
+		this.suggestionsEl?.toggleClass("is-visible", false);
+		this.suggestionsEl?.setAttr("aria-hidden", "true");
+		this.promptEl?.removeAttribute("aria-activedescendant");
+	}
+
+	private handleSuggestionKey(event: KeyboardEvent): boolean {
+		if (this.promptSuggestions.length === 0) {
+			return false;
+		}
+
+		if (event.key === "ArrowDown") {
+			event.preventDefault();
+			this.activeSuggestionIndex = (this.activeSuggestionIndex + 1) % this.promptSuggestions.length;
+			this.updatePromptSuggestions();
+			return true;
+		}
+
+		if (event.key === "ArrowUp") {
+			event.preventDefault();
+			this.activeSuggestionIndex =
+				(this.activeSuggestionIndex + this.promptSuggestions.length - 1) % this.promptSuggestions.length;
+			this.updatePromptSuggestions();
+			return true;
+		}
+
+		if (event.key === "Tab" || event.key === "Enter") {
+			event.preventDefault();
+			this.acceptPromptSuggestion(this.activeSuggestionIndex);
+			return true;
+		}
+
+		if (event.key === "Escape") {
+			event.preventDefault();
+			this.hidePromptSuggestions();
+			return true;
+		}
+
+		return false;
+	}
+
+	private acceptPromptSuggestion(index: number): void {
+		const promptEl = this.promptEl;
+		const suggestion = this.promptSuggestions[index];
+		if (!promptEl || !suggestion) {
+			return;
+		}
+
+		const result = applyPromptSuggestion(promptEl.value, promptEl.selectionStart, suggestion);
+		promptEl.value = result.value;
+		promptEl.setSelectionRange(result.caret, result.caret);
+		promptEl.focus();
+		this.lastPrompt = result.value;
+		this.promptContainsNoteContext = false;
+		this.plugin.settings.lastPromptContainsNoteContext = false;
+		this.hidePromptSuggestions();
 	}
 
 	private getRunMetadata(): string {
@@ -538,6 +686,10 @@ export class CodeianView extends ItemView {
 
 	private getOptionLabel<T extends string>(options: readonly { value: T; label: string }[], value: string): string {
 		return options.find((option) => option.value === value)?.label ?? value;
+	}
+
+	private getMarkdownSourcePath(): string {
+		return this.app.workspace.getActiveFile()?.path ?? "";
 	}
 
 	private async persistSessionState(promptOverride?: string): Promise<void> {
