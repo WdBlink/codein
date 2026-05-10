@@ -12,16 +12,20 @@ export class CodeianView extends ItemView {
 	private runButtonEl: HTMLButtonElement | null = null;
 	private cancelButtonEl: HTMLButtonElement | null = null;
 	private clearButtonEl: HTMLButtonElement | null = null;
+	private settingsButtonEl: HTMLButtonElement | null = null;
+	private newSessionButtonEl: HTMLButtonElement | null = null;
 	private outputEl: HTMLElement | null = null;
 	private outputBodyEl: HTMLElement | null = null;
 	private statusEl: HTMLElement | null = null;
-	private lastPrompt = "";
+	private sessionTitleEl: HTMLElement | null = null;
+	private lastPrompt: string;
 	private promptContainsNoteContext = false;
 	private readonly emptyOutputText = "Output will appear here after a run.";
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.lastPrompt = plugin.settings.lastPrompt;
 	}
 
 	getViewType(): string {
@@ -42,9 +46,10 @@ export class CodeianView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.runner.cancel();
+		await this.persistSessionState();
 	}
 
-	setPrompt(prompt: string, containsNoteContext = false): void {
+	async setPrompt(prompt: string, containsNoteContext = false): Promise<void> {
 		if (!this.promptEl) {
 			this.render();
 		}
@@ -54,6 +59,7 @@ export class CodeianView extends ItemView {
 			this.promptEl.value = prompt;
 			this.promptEl.focus();
 		}
+		await this.persistSessionState();
 	}
 
 	private render(): void {
@@ -64,6 +70,17 @@ export class CodeianView extends ItemView {
 		const titleGroupEl = headerEl.createDiv({ cls: "codeian-title-group" });
 		titleGroupEl.createEl("h3", { text: "Codeian", cls: "codeian-title" });
 		titleGroupEl.createDiv({ text: "Local command sidebar", cls: "codeian-subtitle" });
+		const headerActionsEl = headerEl.createDiv({ cls: "codeian-header-actions" });
+		this.newSessionButtonEl = headerActionsEl.createEl("button", {
+			cls: "clickable-icon codeian-icon-button",
+			attr: { "aria-label": "New session", title: "New session" },
+		});
+		this.newSessionButtonEl.setText("+");
+		this.settingsButtonEl = headerActionsEl.createEl("button", {
+			cls: "clickable-icon codeian-icon-button",
+			attr: { "aria-label": "Open settings", title: "Open settings" },
+		});
+		this.settingsButtonEl.setText("...");
 		const statusWrapEl = headerEl.createDiv({ cls: "codeian-status-wrap" });
 		statusWrapEl.createDiv({ cls: "codeian-status-dot", attr: { "aria-hidden": "true" } });
 		this.statusEl = statusWrapEl.createDiv({
@@ -75,6 +92,13 @@ export class CodeianView extends ItemView {
 				role: "status",
 			},
 		});
+
+		const sessionEl = this.contentEl.createDiv({ cls: "codeian-session-strip" });
+		this.sessionTitleEl = sessionEl.createDiv({
+			cls: "codeian-session-title",
+			text: this.lastPrompt ? firstLine(this.lastPrompt) : "New session",
+		});
+		sessionEl.createDiv({ cls: "codeian-session-meta", text: "Codex" });
 
 		const formEl = this.contentEl.createDiv({ cls: "codeian-form" });
 		const promptHeaderEl = formEl.createDiv({ cls: "codeian-section-header" });
@@ -88,6 +112,17 @@ export class CodeianView extends ItemView {
 			text: "Default settings run in read-only mode. Current note context requires confirmation before it is sent.",
 			cls: "codeian-safety-note",
 		});
+		const hintEl = formEl.createDiv({ cls: "codeian-command-hints", attr: { "aria-label": "Command hints" } });
+		for (const hint of [
+			["/", "Commands"],
+			["$", "Skills"],
+			["@", "Mentions"],
+			["#", "Instructions"],
+		] as const) {
+			const pillEl = hintEl.createDiv({ cls: "codeian-command-pill" });
+			pillEl.createSpan({ cls: "codeian-command-token", text: hint[0] });
+			pillEl.createSpan({ text: hint[1] });
+		}
 		this.promptEl = formEl.createEl("textarea", {
 			cls: "codeian-prompt",
 			attr: {
@@ -99,6 +134,11 @@ export class CodeianView extends ItemView {
 			},
 		});
 		this.promptEl.value = this.lastPrompt;
+		this.promptEl.addEventListener("input", () => {
+			this.lastPrompt = this.promptEl?.value ?? "";
+			this.updateSessionTitle();
+			void this.persistSessionState();
+		});
 		formEl.createDiv({
 			text: "Keep prompts specific. Include the note only when the task needs the full context.",
 			cls: "codeian-help",
@@ -119,6 +159,12 @@ export class CodeianView extends ItemView {
 
 		this.cancelButtonEl.disabled = true;
 
+		this.newSessionButtonEl.addEventListener("click", () => {
+			void this.newSession();
+		});
+		this.settingsButtonEl.addEventListener("click", () => {
+			this.openSettings();
+		});
 		this.runButtonEl.addEventListener("click", () => {
 			void this.runPrompt();
 		});
@@ -144,6 +190,12 @@ export class CodeianView extends ItemView {
 			},
 		});
 		this.outputBodyEl = this.outputEl.createEl("code", { text: this.emptyOutputText });
+		if (this.plugin.settings.lastOutput) {
+			this.setOutput(this.plugin.settings.lastOutput);
+		}
+		if (this.plugin.settings.lastStatus) {
+			this.setStatus(this.plugin.settings.lastStatus);
+		}
 	}
 
 	private async runPrompt(): Promise<void> {
@@ -160,6 +212,8 @@ export class CodeianView extends ItemView {
 			return;
 		}
 		this.lastPrompt = prompt;
+		this.updateSessionTitle();
+		await this.persistSessionState();
 
 		if (this.promptContainsNoteContext && !window.confirm("This prompt includes the current note content. Send it to Codex now?")) {
 			this.setStatus("Send cancelled");
@@ -204,6 +258,7 @@ export class CodeianView extends ItemView {
 			new Notice(`Codeian failed: ${message}`);
 		} finally {
 			this.setRunning(false);
+			await this.persistSessionState();
 		}
 	}
 
@@ -227,12 +282,14 @@ export class CodeianView extends ItemView {
 		if (this.statusEl) {
 			this.statusEl.setText(status);
 		}
+		this.plugin.settings.lastStatus = status;
 	}
 
 	private setOutput(output: string): void {
 		if (!this.outputEl) return;
 		this.outputEl.empty();
 		this.outputBodyEl = this.outputEl.createEl("code", { text: output || this.emptyOutputText });
+		this.plugin.settings.lastOutput = output;
 	}
 
 	private appendOutput(chunk: string): void {
@@ -248,8 +305,47 @@ export class CodeianView extends ItemView {
 			codeEl.textContent = "";
 		}
 		codeEl.textContent += chunk;
+		this.plugin.settings.lastOutput = codeEl.textContent ?? "";
 		this.outputEl.scrollTop = this.outputEl.scrollHeight;
 	}
+
+	private async newSession(): Promise<void> {
+		this.lastPrompt = "";
+		this.promptContainsNoteContext = false;
+		if (this.promptEl) {
+			this.promptEl.value = "";
+			this.promptEl.focus();
+		}
+		this.setOutput("");
+		this.setStatus("Ready");
+		this.updateSessionTitle();
+		await this.persistSessionState();
+	}
+
+	private openSettings(): void {
+		const appWithSetting = this.plugin.app as typeof this.plugin.app & {
+			setting?: {
+				open: () => void | Promise<void>;
+				openTabById: (id: string) => void | Promise<void>;
+			};
+		};
+		void appWithSetting.setting?.open();
+		void appWithSetting.setting?.openTabById(this.plugin.manifest.id);
+	}
+
+	private updateSessionTitle(): void {
+		this.sessionTitleEl?.setText(this.lastPrompt ? firstLine(this.lastPrompt) : "New session");
+	}
+
+	private async persistSessionState(): Promise<void> {
+		this.plugin.settings.lastPrompt = this.promptEl?.value ?? this.lastPrompt;
+		await this.plugin.saveSettings();
+	}
+}
+
+function firstLine(text: string): string {
+	const line = text.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
+	return line.length > 72 ? `${line.slice(0, 69)}...` : line;
 }
 
 function formatFailureMessage(message: string): string {

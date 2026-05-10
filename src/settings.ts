@@ -8,11 +8,17 @@ export interface CodeianSettings {
 	codexCommand: string;
 	codexExtraArgs: string;
 	workingDirectory: string;
+	lastPrompt: string;
+	lastOutput: string;
+	lastStatus: string;
 }
 
 export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	lastOutput: "",
+	lastPrompt: "",
+	lastStatus: "Ready",
 	workingDirectory: "",
 };
 
@@ -66,13 +72,13 @@ export class CodeianSettingTab extends PluginSettingTab {
 
 		const testResultEl = containerEl.createDiv({ cls: "codeian-settings-test-result" });
 		new Setting(containerEl)
-			.setName("Test CLI")
-			.setDesc("Checks whether Obsidian can launch the configured Codex command.")
+			.setName("Test command")
+			.setDesc("Check whether Obsidian can launch the configured command.")
 			.addButton((button) => button
-				.setButtonText("Run test")
+				.setButtonText("Test")
 				.onClick(async () => {
 					button.setDisabled(true);
-					testResultEl.setText("Testing Codex CLI...");
+					testResultEl.setText("Testing command...");
 					try {
 						const result = await testCodexCli(this.plugin.settings, this.plugin.getVaultPath());
 						testResultEl.toggleClass("codeian-settings-test-error", !result.ok);

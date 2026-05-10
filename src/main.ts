@@ -1,6 +1,7 @@
 import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
 
 import { LEGACY_CODEX_ARGS } from "./defaults";
+import { buildCurrentNoteContextPrompt } from "./promptContext";
 import { CodeianSettingTab, DEFAULT_SETTINGS, CodeianSettings } from "./settings";
 import { CodeianView, VIEW_TYPE_CODEIAN } from "./view";
 
@@ -38,17 +39,7 @@ export default class CodeianPlugin extends Plugin {
 					void (async () => {
 						const content = await this.app.vault.cachedRead(activeFile);
 						const view = await this.activateView();
-						view?.setPrompt([
-							"Use the following Obsidian note as context.",
-							"",
-							`Path: ${activeFile.path}`,
-							"",
-							"```markdown",
-							content,
-							"```",
-							"",
-							"Task:",
-						].join("\n"), true);
+						await view?.setPrompt(buildCurrentNoteContextPrompt(activeFile.path, content), true);
 						new Notice("Current note context added.");
 					})();
 				}
