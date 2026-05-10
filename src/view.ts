@@ -11,8 +11,10 @@ export class CodeianView extends ItemView {
 	private promptEl: HTMLTextAreaElement | null = null;
 	private runButtonEl: HTMLButtonElement | null = null;
 	private cancelButtonEl: HTMLButtonElement | null = null;
+	private clearButtonEl: HTMLButtonElement | null = null;
 	private outputEl: HTMLElement | null = null;
 	private statusEl: HTMLElement | null = null;
+	private lastPrompt = "";
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
@@ -59,12 +61,14 @@ export class CodeianView extends ItemView {
 
 		const formEl = this.contentEl.createDiv({ cls: "codeian-form" });
 		this.promptEl = formEl.createEl("textarea", {
-				cls: "codeian-prompt",
-				attr: {
-					placeholder: "Ask the agent to inspect, explain, or plan changes for this vault...",
-					rows: "8",
-				},
-			});
+			cls: "codeian-prompt",
+			attr: {
+				"aria-label": "Codex prompt",
+				placeholder: "Ask the agent to inspect, explain, or plan changes for this vault...",
+				rows: "8",
+			},
+		});
+		this.promptEl.value = this.lastPrompt;
 
 		const actionEl = formEl.createDiv({ cls: "codeian-actions" });
 		this.runButtonEl = actionEl.createEl("button", {
@@ -74,7 +78,7 @@ export class CodeianView extends ItemView {
 		this.cancelButtonEl = actionEl.createEl("button", {
 			text: "Cancel",
 		});
-		const clearButtonEl = actionEl.createEl("button", {
+		this.clearButtonEl = actionEl.createEl("button", {
 			text: "Clear",
 		});
 
@@ -87,7 +91,7 @@ export class CodeianView extends ItemView {
 			this.runner.cancel();
 			this.setStatus("Cancelling...");
 		});
-		clearButtonEl.addEventListener("click", () => {
+		this.clearButtonEl.addEventListener("click", () => {
 			this.setOutput("");
 			this.setStatus("Ready");
 		});
@@ -104,9 +108,12 @@ export class CodeianView extends ItemView {
 
 		const prompt = this.promptEl?.value.trim() ?? "";
 		if (!prompt) {
+			this.setStatus("Prompt required");
+			this.setOutput("Enter a prompt, then run Codex. Nothing is sent until you press Run.");
 			new Notice("Enter a prompt before running.");
 			return;
 		}
+		this.lastPrompt = prompt;
 
 		this.setRunning(true);
 		this.setStatus("Running Codex...");
@@ -147,6 +154,12 @@ export class CodeianView extends ItemView {
 		}
 		if (this.cancelButtonEl) {
 			this.cancelButtonEl.disabled = !running;
+		}
+		if (this.clearButtonEl) {
+			this.clearButtonEl.disabled = running;
+		}
+		if (this.promptEl) {
+			this.promptEl.toggleClass("codeian-prompt-running", running);
 		}
 	}
 
