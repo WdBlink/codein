@@ -12,6 +12,7 @@ import type { CodeianSettings } from "../src/settings";
 const SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
 	lastPromptContainsNoteContext: false,

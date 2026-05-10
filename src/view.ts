@@ -1,8 +1,10 @@
 import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
+import { buildCodexOutputSnapshot } from "./codexOutput";
+import { shouldRunPromptFromKey } from "./keyboard";
 import type CodeianPlugin from "./main";
-import { buildPersistedSidebarState } from "./sessionState";
+import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "./sessionState";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -17,8 +19,11 @@ export class CodeianView extends ItemView {
 	private newSessionButtonEl: HTMLButtonElement | null = null;
 	private outputEl: HTMLElement | null = null;
 	private outputBodyEl: HTMLElement | null = null;
+	private rawDetailsEl: HTMLDetailsElement | null = null;
+	private rawOutputEl: HTMLElement | null = null;
 	private statusEl: HTMLElement | null = null;
 	private sessionTitleEl: HTMLElement | null = null;
+	private rawTranscript = "";
 	private lastPrompt: string;
 	private promptContainsNoteContext: boolean;
 	private running = false;
@@ -28,7 +33,7 @@ export class CodeianView extends ItemView {
 		super(leaf);
 		this.plugin = plugin;
 		this.promptContainsNoteContext = plugin.settings.lastPromptContainsNoteContext;
-		this.lastPrompt = this.promptContainsNoteContext ? "" : plugin.settings.lastPrompt;
+		this.lastPrompt = resolveInitialSidebarPrompt(plugin.settings);
 	}
 
 	getViewType(): string {
@@ -112,6 +117,37 @@ export class CodeianView extends ItemView {
 		});
 		sessionEl.createDiv({ cls: "codeian-session-meta", text: "Codex" });
 
+		const outputPanelEl = this.contentEl.createDiv({ cls: "codeian-output-panel" });
+		const outputHeaderEl = outputPanelEl.createDiv({ cls: "codeian-section-header" });
+		outputHeaderEl.createDiv({ text: "Output", cls: "codeian-label" });
+		outputHeaderEl.createDiv({ text: "Final answer", cls: "codeian-meta" });
+		this.outputEl = outputPanelEl.createEl("pre", {
+			cls: "codeian-output",
+			attr: {
+				"aria-label": "Codex final output",
+				role: "log",
+				tabindex: "0",
+			},
+		});
+		this.outputBodyEl = this.outputEl.createEl("code", { text: this.emptyOutputText });
+
+		this.rawDetailsEl = outputPanelEl.createEl("details", {
+			cls: "codeian-run-details",
+			attr: { "aria-label": "Codex run details" },
+		});
+		this.rawDetailsEl.createEl("summary", { text: "Run details" });
+		const rawOutputPreEl = this.rawDetailsEl.createEl("pre", {
+			cls: "codeian-raw-output",
+			attr: { tabindex: "0" },
+		});
+		this.rawOutputEl = rawOutputPreEl.createEl("code", { text: "Raw stream will appear here during a run." });
+		if (this.plugin.settings.lastOutput) {
+			this.setOutput(this.plugin.settings.lastOutput);
+		}
+		if (this.plugin.settings.lastStatus) {
+			this.setStatus(this.plugin.settings.lastStatus);
+		}
+
 		const formEl = this.contentEl.createDiv({ cls: "codeian-form" });
 		const promptHeaderEl = formEl.createDiv({ cls: "codeian-section-header" });
 		promptHeaderEl.createEl("label", {
@@ -120,10 +156,6 @@ export class CodeianView extends ItemView {
 			attr: { for: "codeian-prompt-input" },
 		});
 		promptHeaderEl.createDiv({ text: "Vault-aware request", cls: "codeian-meta" });
-		formEl.createDiv({
-			text: "Default settings run in read-only mode. Current note context requires confirmation before it is sent.",
-			cls: "codeian-safety-note",
-		});
 		const hintEl = formEl.createDiv({ cls: "codeian-command-hints", attr: { "aria-label": "Command hints" } });
 		for (const hint of [
 			["/", "Commands"],
@@ -142,7 +174,7 @@ export class CodeianView extends ItemView {
 				"aria-label": "Codex prompt",
 				id: "codeian-prompt-input",
 				placeholder: "Ask the agent to inspect, explain, or plan changes for this vault...",
-				rows: "8",
+				rows: "5",
 			},
 		});
 		this.promptEl.value = this.lastPrompt;
@@ -151,6 +183,13 @@ export class CodeianView extends ItemView {
 			this.promptContainsNoteContext = false;
 			this.plugin.settings.lastPromptContainsNoteContext = false;
 			this.updateSessionTitle();
+		});
+		this.promptEl.addEventListener("keydown", (event) => {
+			if (!shouldRunPromptFromKey(event)) {
+				return;
+			}
+			event.preventDefault();
+			void this.runPrompt();
 		});
 		formEl.createDiv({
 			text: "Keep prompts specific. Include the note only when the task needs the full context.",
@@ -187,30 +226,13 @@ export class CodeianView extends ItemView {
 			this.setStatus("Cancelling...");
 		});
 		this.clearButtonEl.addEventListener("click", () => {
+			this.rawTranscript = "";
+			this.setRawOutput("");
 			this.setOutput("");
 			this.setStatus("Ready");
 			void this.persistSessionState();
 		});
 
-		const outputPanelEl = this.contentEl.createDiv({ cls: "codeian-output-panel" });
-		const outputHeaderEl = outputPanelEl.createDiv({ cls: "codeian-section-header" });
-		outputHeaderEl.createDiv({ text: "Output", cls: "codeian-label" });
-		outputHeaderEl.createDiv({ text: "Live log", cls: "codeian-meta" });
-		this.outputEl = outputPanelEl.createEl("pre", {
-			cls: "codeian-output",
-			attr: {
-				"aria-label": "Codex output",
-				role: "log",
-				tabindex: "0",
-			},
-		});
-		this.outputBodyEl = this.outputEl.createEl("code", { text: this.emptyOutputText });
-		if (this.plugin.settings.lastOutput) {
-			this.setOutput(this.plugin.settings.lastOutput);
-		}
-		if (this.plugin.settings.lastStatus) {
-			this.setStatus(this.plugin.settings.lastStatus);
-		}
 	}
 
 	private async runPrompt(): Promise<void> {
@@ -247,25 +269,32 @@ export class CodeianView extends ItemView {
 
 		this.setRunning(true);
 		this.setStatus("Running Codex...");
-		this.setOutput("");
+		this.beginRunOutput();
 
 		try {
 			const result = await this.runner.run({
 				prompt,
 				settings: this.plugin.settings,
 				vaultPath: this.plugin.getVaultPath(),
-				onStdout: (chunk) => this.appendOutput(chunk),
-				onStderr: (chunk) => this.appendOutput(chunk),
+				onStdout: (chunk) => this.appendRawCodexOutput(chunk),
+				onStderr: (chunk) => this.appendRawCodexOutput(chunk),
 			});
 
+			const snapshot = buildCodexOutputSnapshot(this.rawTranscript);
 			if (result.code === 0) {
 				this.setStatus("Finished");
+				if (!snapshot.hasFinalOutput) {
+					this.setOutput("Codex finished without a final answer. Open run details for the full transcript.");
+				}
 			} else if (result.code === null) {
 				this.setStatus("Cancelled");
+				if (!snapshot.hasFinalOutput) {
+					this.setOutput("Codex run was cancelled. Open run details for partial output.");
+				}
 			} else {
 				this.setStatus(`Exited with code ${result.code}`);
-				if (!result.stdout && !result.stderr) {
-					this.appendOutput("Codex exited without output.");
+				if (!snapshot.hasFinalOutput) {
+					this.setOutput(`Codex exited with code ${result.code}. Open run details for the full transcript.`);
 				}
 			}
 		} catch (error) {
@@ -312,33 +341,47 @@ export class CodeianView extends ItemView {
 		this.outputEl.empty();
 		this.outputBodyEl = this.outputEl.createEl("code", { text: output || this.emptyOutputText });
 		this.plugin.settings.lastOutput = output;
-	}
-
-	private appendOutput(chunk: string): void {
-		if (!this.outputEl) return;
-
-		const codeEl = this.outputBodyEl ?? this.outputEl.querySelector("code");
-		if (!codeEl) {
-			this.outputBodyEl = this.outputEl.createEl("code", { text: chunk });
-			return;
-		}
-
-		if (codeEl.textContent === this.emptyOutputText) {
-			codeEl.textContent = "";
-		}
-		codeEl.textContent += chunk;
-		this.plugin.settings.lastOutput = codeEl.textContent ?? "";
 		this.outputEl.scrollTop = this.outputEl.scrollHeight;
 	}
 
+	private beginRunOutput(): void {
+		this.rawTranscript = "";
+		this.setRawOutput("");
+		this.setOutput("Codex is running. Final answer will appear here.");
+		if (this.rawDetailsEl) {
+			this.rawDetailsEl.open = false;
+		}
+	}
+
+	private appendRawCodexOutput(chunk: string): void {
+		this.rawTranscript += chunk;
+		this.setRawOutput(this.rawTranscript);
+
+		const snapshot = buildCodexOutputSnapshot(this.rawTranscript);
+		if (snapshot.hasFinalOutput) {
+			this.setOutput(snapshot.finalOutput);
+		}
+	}
+
+	private setRawOutput(output: string): void {
+		if (!this.rawOutputEl) return;
+		this.rawOutputEl.setText(output || "Raw stream will appear here during a run.");
+		const rawPreEl = this.rawOutputEl.parentElement;
+		if (rawPreEl) {
+			rawPreEl.scrollTop = rawPreEl.scrollHeight;
+		}
+	}
+
 	private async newSession(): Promise<void> {
-		this.lastPrompt = "";
+		this.lastPrompt = this.plugin.settings.defaultPrompt || "";
 		this.promptContainsNoteContext = false;
 		this.plugin.settings.lastPromptContainsNoteContext = false;
 		if (this.promptEl) {
-			this.promptEl.value = "";
+			this.promptEl.value = this.lastPrompt;
 			this.promptEl.focus();
 		}
+		this.rawTranscript = "";
+		this.setRawOutput("");
 		this.setOutput("");
 		this.setStatus("Ready");
 		this.updateSessionTitle();

@@ -1,3 +1,5 @@
+import type { CodeianSettings } from "./settings";
+
 export interface PersistedSidebarState {
 	lastPrompt: string;
 	lastOutput: string;
@@ -22,4 +24,12 @@ export function buildPersistedSidebarState(
 		lastPrompt: prompt,
 		lastPromptContainsNoteContext: false,
 	};
+}
+
+export function resolveInitialSidebarPrompt(settings: CodeianSettings): string {
+	if (settings.lastPromptContainsNoteContext) {
+		return "";
+	}
+
+	return settings.lastPrompt || settings.defaultPrompt || "";
 }

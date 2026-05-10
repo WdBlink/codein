@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPersistedSidebarState } from "../src/sessionState";
+import { DEFAULT_CODEX_ARGS } from "../src/defaults";
+import type { CodeianSettings } from "../src/settings";
+import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "../src/sessionState";
+
+const SETTINGS: CodeianSettings = {
+	codexCommand: "codex",
+	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	defaultPrompt: "",
+	lastOutput: "",
+	lastPrompt: "",
+	lastPromptContainsNoteContext: false,
+	lastStatus: "Ready",
+	workingDirectory: "",
+};
 
 describe("buildPersistedSidebarState", () => {
 	it("does not persist note-context prompts or output that may echo note content", () => {
@@ -17,5 +30,35 @@ describe("buildPersistedSidebarState", () => {
 			lastPrompt: "List files",
 			lastPromptContainsNoteContext: false,
 		});
+	});
+});
+
+describe("resolveInitialSidebarPrompt", () => {
+	it("starts blank when there is no saved or configured prompt", () => {
+		expect(resolveInitialSidebarPrompt(SETTINGS)).toBe("");
+	});
+
+	it("uses the configured default prompt when there is no saved prompt", () => {
+		expect(resolveInitialSidebarPrompt({
+			...SETTINGS,
+			defaultPrompt: "Use concise answers.",
+		})).toBe("Use concise answers.");
+	});
+
+	it("prefers a saved prompt over the configured default prompt", () => {
+		expect(resolveInitialSidebarPrompt({
+			...SETTINGS,
+			defaultPrompt: "Default",
+			lastPrompt: "Saved",
+		})).toBe("Saved");
+	});
+
+	it("does not restore note-context prompts", () => {
+		expect(resolveInitialSidebarPrompt({
+			...SETTINGS,
+			defaultPrompt: "Default",
+			lastPrompt: "Path: secret.md",
+			lastPromptContainsNoteContext: true,
+		})).toBe("");
 	});
 });

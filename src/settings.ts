@@ -7,6 +7,7 @@ import { DEFAULT_CODEX_ARGS } from "./defaults";
 export interface CodeianSettings {
 	codexCommand: string;
 	codexExtraArgs: string;
+	defaultPrompt: string;
 	workingDirectory: string;
 	lastPrompt: string;
 	lastOutput: string;
@@ -17,6 +18,7 @@ export interface CodeianSettings {
 export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
 	lastPromptContainsNoteContext: false,
@@ -69,6 +71,17 @@ export class CodeianSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.workingDirectory)
 				.onChange(async (value) => {
 					this.plugin.settings.workingDirectory = value.trim();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Default prompt")
+			.setDesc("Optional prompt text used to seed new sessions. Leave empty for a blank composer.")
+			.addTextArea((text) => text
+				.setPlaceholder("Optional instructions for new sessions")
+				.setValue(this.plugin.settings.defaultPrompt)
+				.onChange(async (value) => {
+					this.plugin.settings.defaultPrompt = value;
 					await this.plugin.saveSettings();
 				}));
 
