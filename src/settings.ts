@@ -11,6 +11,7 @@ export interface CodeianSettings {
 	lastPrompt: string;
 	lastOutput: string;
 	lastStatus: string;
+	lastPromptContainsNoteContext: boolean;
 }
 
 export const DEFAULT_SETTINGS: CodeianSettings = {
@@ -18,6 +19,7 @@ export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	lastOutput: "",
 	lastPrompt: "",
+	lastPromptContainsNoteContext: false,
 	lastStatus: "Ready",
 	workingDirectory: "",
 };

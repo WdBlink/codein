@@ -105,22 +105,28 @@ export class CodexRunner {
 	}
 }
 
-export async function testCodexCli(settings: CodeianSettings, vaultPath: string | null): Promise<CliSelfTestResult> {
+export async function testCodexCli(
+	settings: CodeianSettings,
+	vaultPath: string | null,
+	spawnProcess?: CodexSpawn,
+): Promise<CliSelfTestResult> {
 	const cwd = resolveWorkingDirectory(settings, vaultPath) ?? vaultPath ?? "/";
 	const resolvedCommand = await resolveCliCommand(settings);
-	const spawn = (await import("child_process")).spawn;
+	const spawn = spawnProcess ?? (await import("child_process")).spawn;
+	const args = buildCodexArgs(settings, cwd);
 
 	return await new Promise<CliSelfTestResult>((resolve) => {
 		let stdout = "";
 		let stderr = "";
-		const child = spawn(resolvedCommand.command, ["--version"], {
+		let settled = false;
+		const child = spawn(resolvedCommand.command, args, {
 			cwd,
 			env: resolvedCommand.env,
 			shell: false,
 		});
 		const timeout = globalThis.setTimeout(() => {
 			child.kill();
-			resolve({
+			finish({
 				ok: false,
 				command: resolvedCommand.command,
 				message: "Codex CLI self-test timed out after 8 seconds.",
@@ -129,6 +135,12 @@ export async function testCodexCli(settings: CodeianSettings, vaultPath: string 
 				code: null,
 			});
 		}, 8000);
+		const finish = (result: CliSelfTestResult) => {
+			if (settled) return;
+			settled = true;
+			globalThis.clearTimeout(timeout);
+			resolve(result);
+		};
 
 		child.stdout.on("data", (data: Buffer) => {
 			stdout += data.toString();
@@ -139,8 +151,7 @@ export async function testCodexCli(settings: CodeianSettings, vaultPath: string 
 		});
 
 		child.on("error", (error) => {
-			globalThis.clearTimeout(timeout);
-			resolve({
+			finish({
 				ok: false,
 				command: resolvedCommand.command,
 				message: formatCliLaunchError(error.message, resolvedCommand.path),
@@ -151,17 +162,19 @@ export async function testCodexCli(settings: CodeianSettings, vaultPath: string 
 		});
 
 		child.on("close", (code) => {
-			globalThis.clearTimeout(timeout);
 			const output = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
-			resolve({
+			finish({
 				ok: code === 0,
 				command: resolvedCommand.command,
-				message: code === 0 ? `Codex CLI available: ${output || resolvedCommand.command}` : `Codex CLI exited with code ${code}.`,
+				message: code === 0 ? `Codex exec self-test passed: ${output || resolvedCommand.command}` : `Codex exec self-test exited with code ${code}.`,
 				stdout,
 				stderr,
 				code,
 			});
 		});
+
+		child.stdin.write("Reply with exactly: Codeian CLI self-test.");
+		child.stdin.end();
 	});
 }
 
@@ -187,14 +200,14 @@ export function getCodexSafetyWarning(settings: CodeianSettings): string | null 
 		return "The configured arguments do not include exec. Codeian expects Codex to run non-interactively.";
 	}
 
-	const sandboxIndex = args.indexOf("--sandbox");
+	const sandboxIndex = args.lastIndexOf("--sandbox");
 	if (sandboxIndex < 0 || args[sandboxIndex + 1] !== "read-only") {
-		return "The configured arguments do not include --sandbox read-only. The CLI may be able to modify files.";
+		return "The effective configured arguments do not include --sandbox read-only. The CLI may be able to modify files.";
 	}
 
-	const approvalIndex = args.indexOf("--ask-for-approval");
+	const approvalIndex = args.lastIndexOf("--ask-for-approval");
 	if (approvalIndex < 0 || args[approvalIndex + 1] !== "never") {
-		return "The configured arguments do not include --ask-for-approval never. The CLI may prompt or block unexpectedly.";
+		return "The effective configured arguments do not include --ask-for-approval never. The CLI may prompt or block unexpectedly.";
 	}
 	if (approvalIndex > execIndex) {
 		return "The configured arguments place --ask-for-approval after exec. Put it before exec for the current Codex CLI.";

@@ -24,8 +24,8 @@ const PATH_SEPARATOR = process.platform === "win32" ? ";" : ":";
 
 export function getEnhancedPath(basePath = process.env.PATH ?? "", home = getHomeDirectory()): string {
 	const entries = [
-		...parsePathEntries(basePath),
 		...getCommonBinaryPaths(home),
+		...parsePathEntries(basePath),
 	];
 	const seen = new Set<string>();
 	const unique: string[] = [];
@@ -135,7 +135,14 @@ async function joinPath(dir: string, command: string): Promise<string> {
 async function defaultExecutableExists(filePath: string): Promise<boolean> {
 	try {
 		const fs = await import("fs");
-		return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+			return false;
+		}
+		if (process.platform === "win32") {
+			return true;
+		}
+		fs.accessSync(filePath, fs.constants.X_OK);
+		return true;
 	} catch {
 		return false;
 	}

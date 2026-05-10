@@ -11,6 +11,10 @@ import type { CodeianSettings } from "../src/settings";
 const SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	lastOutput: "",
+	lastPrompt: "",
+	lastPromptContainsNoteContext: false,
+	lastStatus: "Ready",
 	workingDirectory: "",
 };
 
@@ -19,7 +23,8 @@ describe("getEnhancedPath", () => {
 		const enhanced = getEnhancedPath("/custom/bin:/usr/bin", "/Users/tester");
 		const entries = parsePathEntries(enhanced);
 
-		expect(entries[0]).toBe("/custom/bin");
+		expect(entries).toContain("/custom/bin");
+		expect(entries.indexOf("/opt/homebrew/bin")).toBeLessThan(entries.indexOf("/custom/bin"));
 		expect(entries).toContain("/opt/homebrew/bin");
 		expect(entries).toContain("/usr/local/bin");
 		expect(entries).toContain("/Users/tester/.local/bin");
@@ -39,6 +44,14 @@ describe("resolveCliCommand", () => {
 		expect(result.command).toBe("/opt/homebrew/bin/codex");
 		expect(result.wasResolvedFromPath).toBe(true);
 		expect(parsePathEntries(result.env.PATH)).toContain("/opt/homebrew/bin");
+	});
+
+	it("prefers common local binary paths over inherited PATH entries", async () => {
+		const result = await resolveCliCommand(SETTINGS, (filePath) => (
+			filePath === "/opt/homebrew/bin/codex" || filePath === "/custom/bin/codex"
+		));
+
+		expect(result.command).toBe("/opt/homebrew/bin/codex");
 	});
 
 	it("keeps explicit command paths unchanged", async () => {

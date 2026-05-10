@@ -11,11 +11,16 @@ import {
 	type CodexSpawn,
 	getCodexSafetyWarning,
 	splitCommandLine,
+	testCodexCli,
 } from "../src/codexRunner";
 
 const SETTINGS: CodeianSettings = {
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
+	lastOutput: "",
+	lastPrompt: "",
+	lastPromptContainsNoteContext: false,
+	lastStatus: "Ready",
 	workingDirectory: "",
 };
 
@@ -109,11 +114,25 @@ describe("getCodexSafetyWarning", () => {
 		expect(getCodexSafetyWarning({ ...SETTINGS, codexExtraArgs: "exec --sandbox danger-full-access" })).toContain("read-only");
 	});
 
+	it("warns when later duplicate sandbox arguments override read-only mode", () => {
+		expect(getCodexSafetyWarning({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --sandbox read-only --sandbox danger-full-access",
+		})).toContain("read-only");
+	});
+
 	it("warns when approval policy is placed after the exec subcommand", () => {
 		expect(getCodexSafetyWarning({
 			...SETTINGS,
 			codexExtraArgs: "exec --ask-for-approval never --sandbox read-only",
 		})).toContain("after exec");
+	});
+
+	it("warns when later duplicate approval arguments override never mode", () => {
+		expect(getCodexSafetyWarning({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --sandbox read-only --ask-for-approval on-request",
+		})).toContain("never");
 	});
 });
 
@@ -179,6 +198,33 @@ describe("CodexRunner", () => {
 	});
 });
 
+describe("testCodexCli", () => {
+	it("uses the same exec argument shape as a real run and writes a stdin probe", async () => {
+		const calls: SpawnCall[] = [];
+		const spawn = createFakeSpawn(calls, (child) => {
+			child.stdout.write("Codeian CLI self-test");
+			child.emit("close", 0);
+		});
+
+		const result = await testCodexCli(SETTINGS, "/tmp/vault", spawn);
+
+		expect(result.ok).toBe(true);
+		expect(calls[0]?.args.slice(-3)).toEqual(["-C", "/tmp/vault", "-"]);
+		expect(calls[0]?.stdin).toBe("Reply with exactly: Codeian CLI self-test.");
+	});
+
+	it("reports launch errors with recovery guidance", async () => {
+		const spawn = createFakeSpawn([], (child) => {
+			child.emit("error", new Error("spawn codex ENOENT"));
+		});
+
+		const result = await testCodexCli(SETTINGS, "/tmp/vault", spawn);
+
+		expect(result.ok).toBe(false);
+		expect(result.message).toContain("Could not launch codex");
+	});
+});
+
 interface SpawnCall {
 	command: string;
 	args: string[];
@@ -196,6 +242,7 @@ function createFakeSpawn(
 		child.stdin = stdin;
 		child.stdout = new PassThrough();
 		child.stderr = new PassThrough();
+		child.kill = () => true;
 		const call: SpawnCall = { command, args, options, stdin: "" };
 		calls.push(call);
 		stdin.on("data", (chunk: Buffer) => {

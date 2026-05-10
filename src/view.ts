@@ -2,6 +2,7 @@ import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import type CodeianPlugin from "./main";
+import { buildPersistedSidebarState } from "./sessionState";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -19,13 +20,15 @@ export class CodeianView extends ItemView {
 	private statusEl: HTMLElement | null = null;
 	private sessionTitleEl: HTMLElement | null = null;
 	private lastPrompt: string;
-	private promptContainsNoteContext = false;
+	private promptContainsNoteContext: boolean;
+	private running = false;
 	private readonly emptyOutputText = "Output will appear here after a run.";
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
 		this.plugin = plugin;
-		this.lastPrompt = plugin.settings.lastPrompt;
+		this.promptContainsNoteContext = plugin.settings.lastPromptContainsNoteContext;
+		this.lastPrompt = this.promptContainsNoteContext ? "" : plugin.settings.lastPrompt;
 	}
 
 	getViewType(): string {
@@ -46,6 +49,9 @@ export class CodeianView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.runner.cancel();
+		if (this.running) {
+			this.setStatus("Cancelled");
+		}
 		await this.persistSessionState();
 	}
 
@@ -55,11 +61,17 @@ export class CodeianView extends ItemView {
 		}
 		this.lastPrompt = prompt;
 		this.promptContainsNoteContext = containsNoteContext;
+		this.plugin.settings.lastPromptContainsNoteContext = containsNoteContext;
 		if (this.promptEl) {
 			this.promptEl.value = prompt;
 			this.promptEl.focus();
 		}
-		await this.persistSessionState();
+		if (containsNoteContext) {
+			this.plugin.settings.lastPrompt = "";
+			await this.plugin.saveSettings();
+		} else {
+			await this.persistSessionState();
+		}
 	}
 
 	private render(): void {
@@ -136,8 +148,9 @@ export class CodeianView extends ItemView {
 		this.promptEl.value = this.lastPrompt;
 		this.promptEl.addEventListener("input", () => {
 			this.lastPrompt = this.promptEl?.value ?? "";
+			this.promptContainsNoteContext = false;
+			this.plugin.settings.lastPromptContainsNoteContext = false;
 			this.updateSessionTitle();
-			void this.persistSessionState();
 		});
 		formEl.createDiv({
 			text: "Keep prompts specific. Include the note only when the task needs the full context.",
@@ -160,6 +173,7 @@ export class CodeianView extends ItemView {
 		this.cancelButtonEl.disabled = true;
 
 		this.newSessionButtonEl.addEventListener("click", () => {
+			if (this.running) return;
 			void this.newSession();
 		});
 		this.settingsButtonEl.addEventListener("click", () => {
@@ -175,6 +189,7 @@ export class CodeianView extends ItemView {
 		this.clearButtonEl.addEventListener("click", () => {
 			this.setOutput("");
 			this.setStatus("Ready");
+			void this.persistSessionState();
 		});
 
 		const outputPanelEl = this.contentEl.createDiv({ cls: "codeian-output-panel" });
@@ -213,7 +228,9 @@ export class CodeianView extends ItemView {
 		}
 		this.lastPrompt = prompt;
 		this.updateSessionTitle();
-		await this.persistSessionState();
+		if (!this.promptContainsNoteContext) {
+			await this.persistSessionState();
+		}
 
 		if (this.promptContainsNoteContext && !window.confirm("This prompt includes the current note content. Send it to Codex now?")) {
 			this.setStatus("Send cancelled");
@@ -263,6 +280,7 @@ export class CodeianView extends ItemView {
 	}
 
 	private setRunning(running: boolean): void {
+		this.running = running;
 		this.contentEl.toggleClass("codeian-is-running", running);
 		if (this.runButtonEl) {
 			this.runButtonEl.disabled = running;
@@ -273,7 +291,11 @@ export class CodeianView extends ItemView {
 		if (this.clearButtonEl) {
 			this.clearButtonEl.disabled = running;
 		}
+		if (this.newSessionButtonEl) {
+			this.newSessionButtonEl.disabled = running;
+		}
 		if (this.promptEl) {
+			this.promptEl.disabled = running;
 			this.promptEl.toggleClass("codeian-prompt-running", running);
 		}
 	}
@@ -312,6 +334,7 @@ export class CodeianView extends ItemView {
 	private async newSession(): Promise<void> {
 		this.lastPrompt = "";
 		this.promptContainsNoteContext = false;
+		this.plugin.settings.lastPromptContainsNoteContext = false;
 		if (this.promptEl) {
 			this.promptEl.value = "";
 			this.promptEl.focus();
@@ -338,7 +361,15 @@ export class CodeianView extends ItemView {
 	}
 
 	private async persistSessionState(): Promise<void> {
-		this.plugin.settings.lastPrompt = this.promptEl?.value ?? this.lastPrompt;
+		this.plugin.settings.lastPromptContainsNoteContext = this.promptContainsNoteContext;
+		const snapshot = buildPersistedSidebarState(
+			this.promptEl?.value ?? this.lastPrompt,
+			this.plugin.settings.lastOutput,
+			this.promptContainsNoteContext,
+		);
+		this.plugin.settings.lastPrompt = snapshot.lastPrompt;
+		this.plugin.settings.lastOutput = snapshot.lastOutput;
+		this.plugin.settings.lastPromptContainsNoteContext = snapshot.lastPromptContainsNoteContext;
 		await this.plugin.saveSettings();
 	}
 }
