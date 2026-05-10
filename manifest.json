@@ -1,0 +1,9 @@
+{
+	"id": "codeian",
+	"name": "Codeian",
+	"version": "0.1.0",
+	"minAppVersion": "1.4.5",
+	"description": "Use CodeX from an Obsidian sidebar.",
+	"author": "echooo",
+	"isDesktopOnly": true
+}
