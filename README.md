@@ -41,8 +41,8 @@ Do not test development builds in a primary production vault.
 
 ## Settings
 
-- `CodeX command`: defaults to `codex`.
-- `CodeX arguments`: defaults to `exec --ask-for-approval never --sandbox read-only --skip-git-repo-check`.
+- `CLI command`: defaults to `codex`.
+- `Codex arguments`: defaults to `exec --ask-for-approval never --sandbox read-only --skip-git-repo-check`.
 - `Working directory`: optional absolute path. When empty, Codeian uses the current vault path when available.
 
 ## Reference
