@@ -46,6 +46,8 @@ const MIN_REFRESH_INTERVAL_MS = 30000;
 
 export class PromptSuggestionRegistry {
 	private suggestions: readonly PromptSuggestion[] = BUILT_IN_PROMPT_SUGGESTIONS;
+	private discoveredSuggestions: readonly PromptSuggestion[] = [];
+	private vaultFileSuggestions: readonly PromptSuggestion[] = [];
 	private refreshPromise: Promise<void> | null = null;
 	private lastRefreshAt = 0;
 
@@ -58,6 +60,11 @@ export class PromptSuggestionRegistry {
 		return getPromptSuggestions(value, caret, limit, this.suggestions);
 	}
 
+	setVaultFileSuggestions(suggestions: readonly PromptSuggestion[]): void {
+		this.vaultFileSuggestions = suggestions;
+		this.rebuildSuggestions();
+	}
+
 	async refresh(settings: CodeianSettings, force = false): Promise<void> {
 		if (this.refreshPromise) {
 			return this.refreshPromise;
@@ -68,13 +75,13 @@ export class PromptSuggestionRegistry {
 
 		this.refreshPromise = this.discoverSuggestions(settings)
 			.then((suggestions) => {
-				this.suggestions = suggestions.length > 0
-					? mergePromptSuggestions([...BUILT_IN_PROMPT_SUGGESTIONS, ...suggestions])
-					: BUILT_IN_PROMPT_SUGGESTIONS;
+				this.discoveredSuggestions = suggestions;
+				this.rebuildSuggestions();
 				this.lastRefreshAt = Date.now();
 			})
 			.catch(() => {
-				this.suggestions = BUILT_IN_PROMPT_SUGGESTIONS;
+				this.discoveredSuggestions = [];
+				this.rebuildSuggestions();
 				this.lastRefreshAt = Date.now();
 			})
 			.finally(() => {
@@ -82,6 +89,17 @@ export class PromptSuggestionRegistry {
 			});
 
 		return this.refreshPromise;
+	}
+
+	private rebuildSuggestions(): void {
+		const mentionBuiltIns = BUILT_IN_PROMPT_SUGGESTIONS.filter((suggestion) => suggestion.trigger === "@");
+		const otherBuiltIns = BUILT_IN_PROMPT_SUGGESTIONS.filter((suggestion) => suggestion.trigger !== "@");
+		this.suggestions = mergePromptSuggestions([
+			...otherBuiltIns,
+			...this.discoveredSuggestions,
+			...this.vaultFileSuggestions,
+			...mentionBuiltIns,
+		]);
 	}
 }
 

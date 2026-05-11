@@ -12,6 +12,7 @@ Codeian is a desktop-only Obsidian plugin that embeds a Codex prompt surface ins
 - Use `Enter` to run and `Shift` + `Enter` for a new line
 - Type `/` for Codex CLI command suggestions
 - Type `$` for local Codex skill suggestions
+- Type `@` for active-vault Markdown file suggestions
 - Add the current note as prompt context, with confirmation before sending
 - Allow Codex to write inside the vault/workspace by default, with a sidebar access selector
 
@@ -29,6 +30,7 @@ When typing a prompt:
 | --- | --- |
 | `/` | Shows dynamically discovered Codex CLI commands from the local `codex --help` output. |
 | `$` | Shows dynamically discovered local skills from the machine's Codex skill registry. |
+| `@` | Shows Markdown files from the active vault and inserts `@<vault-relative-path>`. |
 | `Enter` | Runs the current prompt. |
 | `Shift` + `Enter` | Inserts a new line. |
 
@@ -64,6 +66,7 @@ Suggestions are discovered at runtime instead of being hard-coded:
 
 - Slash commands come from the configured local Codex CLI when it is safe to identify it as `codex`.
 - Skill suggestions come from local `SKILL.md` metadata in the Codex skill registry.
+- File suggestions come from Markdown files in the active vault, excluding hidden, `.obsidian`, `node_modules`, and `.git` paths.
 - If discovery fails, Codeian falls back to a small built-in suggestion set.
 
 ### Note context

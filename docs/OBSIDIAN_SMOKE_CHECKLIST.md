@@ -37,6 +37,8 @@ Use a dedicated test vault. Do not run development builds in a primary vault.
 ## CLI Run
 
 - [ ] With a safe test prompt, press `Run`.
+- [ ] Type `@` in the composer and confirm Markdown files from the active vault appear in the candidate menu.
+- [ ] Type part of a filename after `@`, choose a candidate, and confirm `@<vault-relative-path>` is inserted.
 - [ ] Confirm the status changes to `Running Codex...`.
 - [ ] Confirm stdout or stderr appears in the output panel.
 - [ ] Ask Codex to create or edit a disposable note in the test vault; confirm the note is written and a collapsed file-change block appears above the final answer.

@@ -25,6 +25,20 @@ describe("prompt suggestions", () => {
 		expect(getPromptSuggestions("@cur", 4).map((suggestion) => suggestion.value)).toEqual(["@current-note"]);
 	});
 
+	it("matches mention candidates by label, value, and detail", () => {
+		const suggestions = [
+			{ trigger: "@", value: "@docs/Long Path.md", label: "@Long Path", detail: "docs/Long Path.md" },
+			{ trigger: "@", value: "@notes/PROJECT_BRIEF.md", label: "@PROJECT_BRIEF", detail: "notes/PROJECT_BRIEF.md" },
+		] as const;
+
+		expect(getPromptSuggestions("@project", 8, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@notes/PROJECT_BRIEF.md",
+		]);
+		expect(getPromptSuggestions("@docs", 5, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@docs/Long Path.md",
+		]);
+	});
+
 	it("applies a selected suggestion over the active token", () => {
 		const [suggestion] = getPromptSuggestions("run /rev", 8);
 

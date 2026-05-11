@@ -84,10 +84,16 @@ export function getPromptSuggestions(
 		if (!context.query) {
 			return true;
 		}
-		return suggestion.value.toLowerCase().slice(1).includes(context.query);
+		return getSuggestionSearchText(suggestion).includes(context.query);
 	});
 
-	return matches.slice(0, limit);
+	if (!context.query) {
+		return matches.slice(0, limit);
+	}
+
+	return [...matches]
+		.sort((a, b) => rankPromptSuggestion(a, context.query) - rankPromptSuggestion(b, context.query))
+		.slice(0, limit);
 }
 
 export function applyPromptSuggestion(
@@ -107,4 +113,23 @@ export function applyPromptSuggestion(
 		value: nextValue,
 		caret: start + insertion.length,
 	};
+}
+
+function rankPromptSuggestion(suggestion: PromptSuggestion, query: string): number {
+	const value = suggestion.value.toLowerCase().slice(1);
+	const label = suggestion.label.toLowerCase().replace(/^[/$@#]/, "");
+	const detail = suggestion.detail.toLowerCase();
+	if (label.startsWith(query)) return 0;
+	if (value.startsWith(query)) return 1;
+	if (label.includes(query)) return 2;
+	if (value.includes(query)) return 3;
+	if (detail.includes(query)) return 4;
+	return 5;
+}
+
+function getSuggestionSearchText(suggestion: PromptSuggestion): string {
+	return [
+		suggestion.value.slice(1),
+		suggestion.label.replace(/^[/$@#]/, ""),
+	].join(" ").toLowerCase();
 }

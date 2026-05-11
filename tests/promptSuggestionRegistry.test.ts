@@ -135,6 +135,22 @@ describe("PromptSuggestionRegistry", () => {
 			{ trigger: "$", value: "$review", label: "$review", detail: "three" },
 		]).map((suggestion) => suggestion.detail)).toEqual(["one", "three"]);
 	});
+
+	it("serves vault file suggestions before generic mention fallbacks", () => {
+		const registry = new PromptSuggestionRegistry(vi.fn().mockResolvedValue([]));
+		registry.setVaultFileSuggestions([
+			{ trigger: "@", value: "@PROJECT_BRIEF.md", label: "@PROJECT_BRIEF", detail: "PROJECT_BRIEF.md" },
+			{ trigger: "@", value: "@docs/Smoke Checklist.md", label: "@Smoke Checklist", detail: "docs/Smoke Checklist.md" },
+		]);
+
+		expect(registry.getSuggestions("@", 1).map((suggestion) => suggestion.value).slice(0, 2)).toEqual([
+			"@PROJECT_BRIEF.md",
+			"@docs/Smoke Checklist.md",
+		]);
+		expect(registry.getSuggestions("@smoke", 6).map((suggestion) => suggestion.value)).toEqual([
+			"@docs/Smoke Checklist.md",
+		]);
+	});
 });
 
 function createMemoryFileReader(files: Record<string, string>): SkillFileReader {

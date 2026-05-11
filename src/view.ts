@@ -17,6 +17,7 @@ import {
 } from "./promptSuggestions";
 import { PromptSuggestionRegistry } from "./promptSuggestionRegistry";
 import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "./sessionState";
+import { buildVaultFileSuggestions } from "./vaultFileSuggestions";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -88,6 +89,10 @@ export class CodeianView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.render();
+		this.refreshVaultFileSuggestions();
+		this.registerEvent(this.app.vault.on("create", () => this.handleVaultFilesChanged()));
+		this.registerEvent(this.app.vault.on("delete", () => this.handleVaultFilesChanged()));
+		this.registerEvent(this.app.vault.on("rename", () => this.handleVaultFilesChanged()));
 		void this.refreshPromptSuggestionRegistry();
 	}
 
@@ -741,10 +746,25 @@ export class CodeianView extends ItemView {
 	}
 
 	private async refreshPromptSuggestionRegistry(): Promise<void> {
+		this.refreshVaultFileSuggestions();
 		await this.suggestionRegistry.refresh(this.plugin.settings);
 		if (this.suggestionsEl?.hasClass("is-visible")) {
 			return;
 		}
+		this.updatePromptSuggestions();
+	}
+
+	private refreshVaultFileSuggestions(): void {
+		const vaultWithConfigDir = this.app.vault as typeof this.app.vault & { configDir?: string };
+		this.suggestionRegistry.setVaultFileSuggestions(
+			buildVaultFileSuggestions(this.app.vault.getMarkdownFiles(), {
+				configDir: vaultWithConfigDir.configDir,
+			}),
+		);
+	}
+
+	private handleVaultFilesChanged(): void {
+		this.refreshVaultFileSuggestions();
 		this.updatePromptSuggestions();
 	}
 
