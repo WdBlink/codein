@@ -1,32 +1,99 @@
 # Codeian
 
-Codeian is an Obsidian desktop plugin demo that opens CodeX from a right sidebar.
+Use Codex from an Obsidian sidebar.
 
-The first version focuses on the smallest useful integration:
+Codeian is a desktop-only Obsidian plugin that embeds a Codex prompt surface inside your vault. It is built for users who want to ask Codex for help while staying in Obsidian, with the vault as the working context and the local `codex` CLI as the execution engine.
 
-- Register an Obsidian sidebar view.
-- Accept a prompt inside Obsidian.
-- Run the local CodeX/Codex CLI through `codex exec`.
-- Stream stdout and stderr back into the sidebar.
+- Open Codex in the right sidebar
+- Run prompts from inside Obsidian
+- Stream Codex output back into the conversation
+- Render final answers as Markdown
+- Choose model and reasoning effort from the sidebar
+- Use `Enter` to run and `Shift` + `Enter` for a new line
+- Type `/` for Codex CLI command suggestions
+- Type `$` for local Codex skill suggestions
+- Add the current note as prompt context, with confirmation before sending
+- Keep a read-only sandbox posture by default
 
-## Requirements
+## How to use
 
-- Obsidian desktop.
-- Node.js 20.19.0 or newer and npm for development.
-- CodeX/Codex CLI available on `PATH` as `codex`, or configured in Codeian settings.
+Open Codeian from the ribbon icon or from the command palette command `Codeian: Open sidebar`.
 
-This plugin is desktop only because it launches a local CLI process.
+Type a prompt in the composer at the bottom of the sidebar and press `Enter` to run it. Use `Shift` + `Enter` when you want to add a line break instead of running the prompt.
 
-## Development
+The sidebar includes quick selectors for model and reasoning effort. These selectors are passed into the Codex CLI run so a prompt can be switched between faster and deeper modes without opening settings.
+
+When typing a prompt:
+
+| Input | Behavior |
+| --- | --- |
+| `/` | Shows dynamically discovered Codex CLI commands from the local `codex --help` output. |
+| `$` | Shows dynamically discovered local skills from the machine's Codex skill registry. |
+| `Enter` | Runs the current prompt. |
+| `Shift` + `Enter` | Inserts a new line. |
+
+## Features
+
+### Sidebar Codex workflow
+
+Codeian registers a right-sidebar view with a compact conversation surface, status indicator, run/cancel controls, model selector, effort selector, and settings shortcut.
+
+### Local CLI execution
+
+Codeian runs the local Codex CLI through `codex exec`. Obsidian desktop apps often launch without the same `PATH` as your terminal, so Codeian also searches common local binary directories and provides a settings-level CLI test.
+
+### Streaming output
+
+Codex output is streamed into the sidebar while the process runs. Noisy intermediate logs are kept out of the final answer surface where possible, and the final assistant content is rendered as Markdown for readability.
+
+### Dynamic prompt suggestions
+
+Suggestions are discovered at runtime instead of being hard-coded:
+
+- Slash commands come from the configured local Codex CLI when it is safe to identify it as `codex`.
+- Skill suggestions come from local `SKILL.md` metadata in the Codex skill registry.
+- If discovery fails, Codeian falls back to a small built-in suggestion set.
+
+### Note context
+
+The `Add current note context` command inserts the active note into the prompt composer. Codeian asks for confirmation before sending prompt content that was created from a note.
+
+## Installation
+
+Codeian is not yet published in the Obsidian community plugin marketplace.
+
+### Manual install from GitHub release
+
+1. Download the latest release assets from the [GitHub releases page](https://github.com/WdBlink/codein/releases).
+2. Create this folder inside a dedicated test vault:
+
+```text
+<vault>/.obsidian/plugins/codeian/
+```
+
+3. Copy these files into that folder:
+
+```text
+main.js
+manifest.json
+styles.css
+```
+
+4. Open Obsidian settings.
+5. Go to `Community plugins`.
+6. Enable community plugins if needed.
+7. Enable `Codeian`.
+
+Do not test development builds in a primary production vault. Use an isolated test vault until you trust the build.
+
+### Development install
 
 ```bash
 npm install
-npm test
-npm run lint
 npm run build
-npm run verify:release
-npm run smoke:test-vault
 ```
+
+Then copy `main.js`, `manifest.json`, and `styles.css` into `<vault>/.obsidian/plugins/codeian/`.
 
 For watch mode:
 
@@ -34,61 +101,70 @@ For watch mode:
 npm run dev
 ```
 
-## Usage
+## Requirements
 
-1. Build the plugin.
-2. Copy `main.js`, `manifest.json`, and `styles.css` into a dedicated test vault plugin folder.
-3. Enable Codeian from Obsidian community plugins.
-4. Open the sidebar from the ribbon icon or command palette.
+- Obsidian desktop
+- Codex CLI available as `codex`, or configured with an absolute path in Codeian settings
+- Node.js 20.19.0 or newer for development
 
-Do not test development builds in a primary production vault.
-
-Example test-vault plugin path:
-
-```text
-/path/to/test-vault/.obsidian/plugins/codeian/
-```
+Codeian is desktop only because mobile Obsidian cannot launch a local CLI process.
 
 ## Settings
 
-- `CLI command`: defaults to `codex`.
-- `Codex arguments`: defaults to `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check`.
-- `Working directory`: optional absolute path. When empty, Codeian uses the current vault path when available.
+| Setting | Default | Notes |
+| --- | --- | --- |
+| CLI command | `codex` | Use an absolute path if Obsidian cannot find your terminal-installed CLI. |
+| Codex arguments | `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check` | Runs Codex non-interactively with a read-only sandbox by default. |
+| Working directory | Empty | When empty, Codeian uses the current vault path when available. |
+| Default prompt | Empty | Optional saved prompt text for new sessions. |
+| Model | `gpt-5.4-mini` | Can also be changed from the sidebar. |
+| Effort | `medium` | Can also be changed from the sidebar. |
 
-The default arguments run Codex non-interactively with no approval prompts and a read-only sandbox. Change them only when you intentionally want a different execution mode.
-
-Codeian warns before running when the configured command is not `codex` or when the arguments do not include the default read-only sandbox posture.
+Codeian warns before running when the configured command is not `codex` or when the arguments do not include the expected read-only sandbox posture.
 
 ## Safety and privacy
 
 - Codeian does not run automatically on startup.
-- Codeian does not send note content when you open the sidebar.
-- The current-note command only inserts note content into the prompt box. You must press `Run` before anything is sent to the CLI.
-- If a prompt was created from the current note, Codeian asks for confirmation before sending it to Codex.
+- Codeian does not send note content when the sidebar opens.
+- Current-note context is inserted into the composer first; you still choose whether to run it.
+- Note-context prompts require confirmation before sending.
 - No telemetry is collected by this plugin.
-- Settings are stored with Obsidian plugin data APIs.
-- The first demo is intentionally desktop-only because mobile Obsidian cannot launch a local CLI process.
+- Settings are stored through Obsidian's plugin data APIs.
+- The default execution posture uses Codex non-interactively with a read-only sandbox.
+
+Codex itself may send prompts, attached/context files, and tool outputs to the provider configured by your local Codex environment. Review your Codex configuration before using Codeian with sensitive vaults.
+
+## Development
+
+```bash
+npm test
+npm run lint
+npm run build
+npm run verify:release
+npm run smoke:test-vault
+```
+
+The smoke test copies release files into a temporary isolated vault plugin directory and verifies the copied manifest.
 
 ## Release files
 
-An installable release must include:
+Each GitHub release should include exactly the files Obsidian needs to load the plugin:
 
 - `main.js`
 - `manifest.json`
 - `styles.css`
 
-The GitHub Actions workflow runs `npm test`, `npm run lint`, and `npm run build` on pushed commits and pull requests.
-
-`npm run verify:release` checks that the required release files exist and are non-empty. `npm run smoke:test-vault` copies them into a temporary isolated vault plugin directory and verifies the copied manifest.
+`npm run verify:release` checks that these files exist and are non-empty.
 
 ## Known limits
 
-- The first demo uses `codex exec`, so each run is non-interactive.
-- Conversation history, multi-tab chat, inline editing, MCP management, and app-server integration are not part of this version.
-- GUI acceptance still needs to be performed inside an isolated Obsidian test vault.
+- Codeian currently uses `codex exec`, so each run is non-interactive.
+- Conversation history is local sidebar state, not a full multi-session transcript manager.
+- MCP server management, app-server integration, inline note editing, and community marketplace publishing are not part of this version.
+- Manual GUI acceptance should still be performed in an isolated Obsidian test vault.
 
 Use [docs/OBSIDIAN_SMOKE_CHECKLIST.md](docs/OBSIDIAN_SMOKE_CHECKLIST.md) for the manual Obsidian smoke pass.
 
 ## Reference
 
-Project requirements and reference links are kept in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
+Project requirements and design notes are kept in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
