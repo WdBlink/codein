@@ -3,7 +3,7 @@
 	"name": "Codeian",
 	"version": "0.2.1",
 	"minAppVersion": "1.4.5",
-	"description": "Use CodeX from an Obsidian sidebar.",
+	"description": "Use Codex from a sidebar in your vault.",
 	"author": "echooo",
 	"isDesktopOnly": true
 }

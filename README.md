@@ -1,6 +1,6 @@
 # Codeian
 
-Use Codex from an Obsidian sidebar.
+Use Codex from a sidebar in your vault.
 
 Codeian is a desktop-only Obsidian plugin that embeds a Codex prompt surface inside your vault. It is built for users who want to ask Codex for help while staying in Obsidian, with the vault as the working context and the local `codex` CLI as the execution engine.
 
