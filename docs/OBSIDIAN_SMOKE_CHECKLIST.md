@@ -21,22 +21,25 @@ Use a dedicated test vault. Do not run development builds in a primary vault.
 ## Settings
 
 - [ ] Open Codeian settings.
-- [ ] Confirm `CLI command`, `Codex arguments`, and `Working directory` are visible.
+- [ ] Confirm `CLI command`, `Codex arguments`, `File access`, and `Working directory` are visible.
 - [ ] Confirm settings persist after closing and reopening Obsidian settings.
-- [ ] Restore the default arguments before testing a real run: `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check`.
+- [ ] Restore the default arguments before testing a real run: `--ask-for-approval never exec --skip-git-repo-check`.
+- [ ] Confirm the sidebar `Access` selector switches between `Write`, `Read`, and `YOLO`.
 
 ## Safety
 
 - [ ] Run with an empty prompt and confirm Codeian shows a prompt-required state.
 - [ ] Use `Add current note context` and confirm the note is inserted into the prompt but not sent immediately.
 - [ ] Press `Run` on note-context prompt and confirm Codeian asks before sending note content.
-- [ ] Temporarily change the command away from `codex` or remove `--sandbox read-only`; confirm Codeian warns before running.
+- [ ] Temporarily change the command away from `codex`; confirm Codeian warns before running.
+- [ ] Select `YOLO` file access; confirm Codeian warns before running.
 
 ## CLI Run
 
 - [ ] With a safe test prompt, press `Run`.
 - [ ] Confirm the status changes to `Running Codex...`.
 - [ ] Confirm stdout or stderr appears in the output panel.
+- [ ] Ask Codex to create or edit a disposable note in the test vault; confirm the note is written and a collapsed file-change block appears above the final answer.
 - [ ] Confirm `Cancel` is enabled while running.
 - [ ] Confirm a completed run reports `Finished` or a nonzero exit code.
 

@@ -13,7 +13,7 @@ Codeian is a desktop-only Obsidian plugin that embeds a Codex prompt surface ins
 - Type `/` for Codex CLI command suggestions
 - Type `$` for local Codex skill suggestions
 - Add the current note as prompt context, with confirmation before sending
-- Keep a read-only sandbox posture by default
+- Allow Codex to write inside the vault/workspace by default, with a sidebar access selector
 
 ## How to use
 
@@ -21,7 +21,7 @@ Open Codeian from the ribbon icon or from the command palette command `Codeian: 
 
 Type a prompt in the composer at the bottom of the sidebar and press `Enter` to run it. Use `Shift` + `Enter` when you want to add a line break instead of running the prompt.
 
-The sidebar includes quick selectors for model and reasoning effort. These selectors are passed into the Codex CLI run so a prompt can be switched between faster and deeper modes without opening settings.
+The sidebar includes quick selectors for model, reasoning effort, and file access. These selectors are passed into the Codex CLI run so a prompt can be switched between faster, deeper, read-only, writable, and YOLO modes without opening settings.
 
 When typing a prompt:
 
@@ -41,6 +41,18 @@ Codeian registers a right-sidebar view with a compact conversation surface, stat
 ### Local CLI execution
 
 Codeian runs the local Codex CLI through `codex exec`. Obsidian desktop apps often launch without the same `PATH` as your terminal, so Codeian also searches common local binary directories and provides a settings-level CLI test.
+
+### File access modes
+
+Codeian manages Codex `--sandbox` separately from the raw argument text:
+
+| Sidebar label | Codex sandbox | Behavior |
+| --- | --- | --- |
+| Write | `workspace-write` | Default. Codex can edit files in the active vault or configured working directory. |
+| Read | `read-only` | Codex can inspect files but should not modify them. |
+| YOLO | `danger-full-access` | Codex gets unrestricted filesystem access. Codeian asks for confirmation before running. |
+
+File write/edit events from Codex are shown as collapsible file-change blocks in the assistant stream, keeping the final Markdown answer readable while still making document modifications visible.
 
 ### Streaming output
 
@@ -114,13 +126,14 @@ Codeian is desktop only because mobile Obsidian cannot launch a local CLI proces
 | Setting | Default | Notes |
 | --- | --- | --- |
 | CLI command | `codex` | Use an absolute path if Obsidian cannot find your terminal-installed CLI. |
-| Codex arguments | `--ask-for-approval never exec --sandbox read-only --skip-git-repo-check` | Runs Codex non-interactively with a read-only sandbox by default. |
+| Codex arguments | `--ask-for-approval never exec --skip-git-repo-check` | Runs Codex non-interactively. Codeian manages JSON output, working directory, model, effort, and sandbox separately. |
+| File access | `Write` | Uses `--sandbox workspace-write` so Codex can modify files in the vault/workspace. |
 | Working directory | Empty | When empty, Codeian uses the current vault path when available. |
 | Default prompt | Empty | Optional saved prompt text for new sessions. |
 | Model | `gpt-5.4-mini` | Can also be changed from the sidebar. |
 | Effort | `medium` | Can also be changed from the sidebar. |
 
-Codeian warns before running when the configured command is not `codex` or when the arguments do not include the expected read-only sandbox posture.
+Codeian warns before running when the configured command is not `codex`, when `--ask-for-approval never` is missing or placed after `exec`, or when YOLO file access is selected.
 
 ## Safety and privacy
 
@@ -130,7 +143,7 @@ Codeian warns before running when the configured command is not `codex` or when 
 - Note-context prompts require confirmation before sending.
 - No telemetry is collected by this plugin.
 - Settings are stored through Obsidian's plugin data APIs.
-- The default execution posture uses Codex non-interactively with a read-only sandbox.
+- The default execution posture uses Codex non-interactively with workspace-write sandbox access, so Codex can modify files in the vault or configured working directory.
 
 Codex itself may send prompts, attached/context files, and tool outputs to the provider configured by your local Codex environment. Review your Codex configuration before using Codeian with sensitive vaults.
 

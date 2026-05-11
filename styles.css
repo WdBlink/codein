@@ -222,6 +222,125 @@
 	animation: codeian-thinking-pulse 1.4s ease-in-out infinite;
 }
 
+.codeian-tool-events {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+.codeian-write-edit-block {
+	border-top: 1px solid var(--codeian-border);
+	color: var(--text-muted);
+	font-size: 12px;
+	padding: 6px 0 0;
+}
+
+.codeian-write-edit-block:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+.codeian-write-edit-summary {
+	align-items: center;
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	justify-content: space-between;
+	list-style: none;
+	min-height: 22px;
+}
+
+.codeian-write-edit-summary::-webkit-details-marker {
+	display: none;
+}
+
+.codeian-write-edit-summary::before {
+	color: var(--text-faint);
+	content: ">";
+	flex: 0 0 auto;
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	transition: transform 120ms ease;
+}
+
+.codeian-write-edit-block[open] .codeian-write-edit-summary::before {
+	transform: rotate(90deg);
+}
+
+.codeian-write-edit-name {
+	color: var(--text-normal);
+	flex: 1 1 auto;
+	font-weight: 550;
+	min-width: 0;
+}
+
+.codeian-write-edit-state {
+	border-radius: 4px;
+	color: var(--text-muted);
+	flex: 0 0 auto;
+	font-size: 10px;
+	line-height: 1;
+	padding: 3px 5px;
+}
+
+.codeian-write-edit-state.is-completed {
+	background: var(--codeian-accent-soft);
+	color: var(--interactive-accent);
+}
+
+.codeian-write-edit-state.is-failed {
+	background: var(--background-modifier-error);
+	color: var(--text-error);
+}
+
+.codeian-write-edit-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 6px 0 2px 18px;
+}
+
+.codeian-write-edit-row {
+	display: grid;
+	gap: 4px 6px;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	min-width: 0;
+}
+
+.codeian-write-edit-kind,
+.codeian-write-edit-stats {
+	color: var(--text-faint);
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.codeian-write-edit-path {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	line-height: 1.4;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.codeian-write-edit-diff {
+	background: var(--background-secondary);
+	border-radius: 4px;
+	color: var(--text-muted);
+	font-size: 10px;
+	grid-column: 1 / -1;
+	margin: 2px 0 0;
+	max-height: 220px;
+	overflow: auto;
+	padding: 8px;
+	white-space: pre;
+}
+
 .codeian-input-container {
 	flex: 0 0 auto;
 	padding-top: 12px;

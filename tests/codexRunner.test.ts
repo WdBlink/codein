@@ -19,6 +19,7 @@ const SETTINGS: CodeianSettings = {
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
 	codexModel: "gpt-5.4-mini",
+	codexSandbox: "workspace-write",
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
@@ -76,13 +77,11 @@ describe("splitCommandLine", () => {
 		expect(() => splitCommandLine("exec --model \"gpt-5")).toThrow("Unclosed quote");
 	});
 
-	it("keeps the production default in read-only non-interactive mode", () => {
+	it("keeps the production default in writable non-interactive mode", () => {
 		expect(splitCommandLine(DEFAULT_CODEX_ARGS)).toEqual([
 			"--ask-for-approval",
 			"never",
 			"exec",
-			"--sandbox",
-			"read-only",
 			"--skip-git-repo-check",
 		]);
 	});
@@ -97,9 +96,9 @@ describe("buildCodexArgs", () => {
 			"--color",
 			"never",
 			"--json",
-			"--sandbox",
-			"read-only",
 			"--skip-git-repo-check",
+			"--sandbox",
+			"workspace-write",
 			"--model",
 			"gpt-5.4-mini",
 			"-c",
@@ -131,7 +130,7 @@ describe("buildCodexArgs", () => {
 			"never",
 			"--json",
 			"--sandbox",
-			"read-only",
+			"workspace-write",
 			"--model",
 			"gpt-5.5",
 			"-c",
@@ -141,10 +140,23 @@ describe("buildCodexArgs", () => {
 			"-",
 		]);
 	});
+
+	it("uses the selected sandbox mode instead of stale custom sandbox args", () => {
+		expect(buildCodexArgs({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --sandbox read-only --skip-git-repo-check",
+			codexSandbox: "danger-full-access",
+		}, "/tmp/vault")).toContain("danger-full-access");
+		expect(buildCodexArgs({
+			...SETTINGS,
+			codexExtraArgs: "--ask-for-approval never exec --sandbox read-only --skip-git-repo-check",
+			codexSandbox: "danger-full-access",
+		}, "/tmp/vault").filter((arg) => arg === "--sandbox")).toHaveLength(1);
+	});
 });
 
 describe("getCodexSafetyWarning", () => {
-	it("accepts the default read-only configuration", () => {
+	it("accepts the default workspace-write configuration", () => {
 		expect(getCodexSafetyWarning(SETTINGS)).toBeNull();
 	});
 
@@ -152,21 +164,14 @@ describe("getCodexSafetyWarning", () => {
 		expect(getCodexSafetyWarning({ ...SETTINGS, codexCommand: "node" })).toContain("not codex");
 	});
 
-	it("warns when sandbox is not read-only", () => {
-		expect(getCodexSafetyWarning({ ...SETTINGS, codexExtraArgs: "exec --sandbox danger-full-access" })).toContain("read-only");
-	});
-
-	it("warns when later duplicate sandbox arguments override read-only mode", () => {
-		expect(getCodexSafetyWarning({
-			...SETTINGS,
-			codexExtraArgs: "--ask-for-approval never exec --sandbox read-only --sandbox danger-full-access",
-		})).toContain("read-only");
+	it("warns when the selected sandbox is unrestricted", () => {
+		expect(getCodexSafetyWarning({ ...SETTINGS, codexSandbox: "danger-full-access" })).toContain("unrestricted");
 	});
 
 	it("warns when approval policy is placed after the exec subcommand", () => {
 		expect(getCodexSafetyWarning({
 			...SETTINGS,
-			codexExtraArgs: "exec --ask-for-approval never --sandbox read-only",
+			codexExtraArgs: "exec --ask-for-approval never --sandbox workspace-write",
 		})).toContain("after exec");
 	});
 

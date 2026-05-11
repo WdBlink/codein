@@ -3,7 +3,7 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "c
 
 import { normalizeFileSystemPath, resolveCliCommand, type CliSelfTestResult } from "./cliResolver";
 import type { CodeianSettings } from "./settings";
-import { DEFAULT_CODEX_ARGS } from "./defaults";
+import { DEFAULT_CODEX_ARGS, resolveSandboxMode } from "./defaults";
 
 export interface CodexRunResult {
 	code: number | null;
@@ -186,9 +186,12 @@ export function buildCodexArgs(settings: CodeianSettings, cwd: string): string[]
 	const baseArgs = withoutManagedCodexArgs(structuredArgs);
 	const model = settings.codexModel.trim();
 	const effort = settings.codexEffort.trim();
+	const sandbox = resolveSandboxMode(settings.codexSandbox);
 
 	return [
 		...baseArgs,
+		"--sandbox",
+		sandbox,
 		...(model ? ["--model", model] : []),
 		...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : []),
 		"-C",
@@ -210,17 +213,16 @@ export function getCodexSafetyWarning(settings: CodeianSettings): string | null 
 		return "The configured arguments do not include exec. Codeian expects Codex to run non-interactively.";
 	}
 
-	const sandboxIndex = args.lastIndexOf("--sandbox");
-	if (sandboxIndex < 0 || args[sandboxIndex + 1] !== "read-only") {
-		return "The effective configured arguments do not include --sandbox read-only. The CLI may be able to modify files.";
-	}
-
 	const approvalIndex = args.lastIndexOf("--ask-for-approval");
 	if (approvalIndex < 0 || args[approvalIndex + 1] !== "never") {
 		return "The effective configured arguments do not include --ask-for-approval never. The CLI may prompt or block unexpectedly.";
 	}
 	if (approvalIndex > execIndex) {
 		return "The configured arguments place --ask-for-approval after exec. Put it before exec for the current Codex CLI.";
+	}
+
+	if (resolveSandboxMode(settings.codexSandbox) === "danger-full-access") {
+		return "YOLO file access gives Codex unrestricted filesystem permissions.";
 	}
 
 	return null;
@@ -353,6 +355,16 @@ function withoutManagedCodexArgs(args: string[]): string[] {
 			continue;
 		}
 		if (arg.startsWith("--config=") && isManagedCodexConfig(arg.slice("--config=".length))) {
+			continue;
+		}
+		if (arg === "--sandbox") {
+			index++;
+			continue;
+		}
+		if (arg.startsWith("--sandbox=")) {
+			continue;
+		}
+		if (arg === "--dangerously-bypass-approvals-and-sandbox") {
 			continue;
 		}
 

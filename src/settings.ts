@@ -2,13 +2,19 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
 import CodeianPlugin from "./main";
 import { testCodexCli } from "./codexRunner";
-import { DEFAULT_CODEX_ARGS } from "./defaults";
+import {
+	DEFAULT_CODEX_ARGS,
+	DEFAULT_CODEX_SANDBOX,
+	resolveSandboxMode,
+	type CodexSandboxMode,
+} from "./defaults";
 
 export interface CodeianSettings {
 	codexCommand: string;
 	codexExtraArgs: string;
 	codexEffort: string;
 	codexModel: string;
+	codexSandbox: CodexSandboxMode;
 	defaultPrompt: string;
 	workingDirectory: string;
 	lastPrompt: string;
@@ -22,6 +28,7 @@ export const DEFAULT_SETTINGS: CodeianSettings = {
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
 	codexModel: "gpt-5.4-mini",
+	codexSandbox: DEFAULT_CODEX_SANDBOX,
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",
@@ -58,12 +65,25 @@ export class CodeianSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Codex arguments")
-			.setDesc("Arguments passed before the prompt. The prompt is sent through stdin.")
+			.setDesc("Arguments passed before the prompt.")
 			.addTextArea((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.codexExtraArgs)
 				.setValue(this.plugin.settings.codexExtraArgs)
 				.onChange(async (value) => {
 					this.plugin.settings.codexExtraArgs = value.trim();
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("File access")
+			.setDesc("Controls codex --sandbox; write allows edits inside the vault/workspace, and yolo gives unrestricted filesystem access.")
+			.addDropdown((dropdown) => dropdown
+				.addOption("workspace-write", "Write")
+				.addOption("read-only", "Read")
+				.addOption("danger-full-access", "YOLO")
+				.setValue(resolveSandboxMode(this.plugin.settings.codexSandbox))
+				.onChange(async (value) => {
+					this.plugin.settings.codexSandbox = resolveSandboxMode(value);
 					await this.plugin.saveSettings();
 				}));
 

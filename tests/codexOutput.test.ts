@@ -46,6 +46,78 @@ describe("Codex JSON output parsing", () => {
 		expect(snapshot.errorText).toContain("OpenAI Codex");
 	});
 
+	it("extracts apply_patch file change events without mixing them into final output", () => {
+		const state = createCodexJsonStreamState();
+		appendCodexJsonChunk(state, JSON.stringify({
+			type: "event_msg",
+			payload: {
+				type: "patch_apply_end",
+				call_id: "call_patch",
+				success: true,
+				changes: {
+					"Notes/demo.md": {
+						type: "update",
+						unified_diff: "@@\n-old\n+new\n+next\n",
+					},
+				},
+			},
+		}) + "\n");
+		appendCodexJsonChunk(state, "{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Done\"}}\n");
+
+		const snapshot = flushCodexJsonStream(state);
+		expect(snapshot.finalOutput).toBe("Done");
+		expect(snapshot.fileChanges).toHaveLength(1);
+		expect(snapshot.fileChanges[0]).toMatchObject({
+			id: "call_patch",
+			status: "completed",
+			toolName: "apply_patch",
+		});
+		expect(snapshot.fileChanges[0]?.entries[0]).toMatchObject({
+			addedLines: 2,
+			kind: "update",
+			path: "Notes/demo.md",
+			removedLines: 1,
+		});
+	});
+
+	it("updates file_change lifecycle events from codex exec json output", () => {
+		const state = createCodexJsonStreamState();
+		appendCodexJsonChunk(state, [
+			JSON.stringify({
+				type: "item.started",
+				item: {
+					id: "item_1",
+					type: "file_change",
+					changes: [{ path: "/tmp/vault/codeian-write-test.md", kind: "add" }],
+					status: "in_progress",
+				},
+			}),
+			JSON.stringify({
+				type: "item.completed",
+				item: {
+					id: "item_1",
+					type: "file_change",
+					changes: [{ path: "/tmp/vault/codeian-write-test.md", kind: "add" }],
+					status: "completed",
+				},
+			}),
+		].join("\n") + "\n");
+
+		const snapshot = flushCodexJsonStream(state);
+		expect(snapshot.fileChanges).toEqual([{
+			entries: [{
+				addedLines: undefined,
+				diff: undefined,
+				kind: "add",
+				path: "/tmp/vault/codeian-write-test.md",
+				removedLines: undefined,
+			}],
+			id: "item_1",
+			status: "completed",
+			toolName: "file_change",
+		}]);
+	});
+
 	it("formats compact usage text", () => {
 		expect(formatCodexUsage({ outputTokens: 17, reasoningOutputTokens: 9 })).toBe("17 output · 9 reasoning");
 		expect(formatCodexUsage(null)).toBe("");

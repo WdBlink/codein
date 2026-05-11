@@ -14,6 +14,7 @@ const SETTINGS: CodeianSettings = {
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
 	codexModel: "gpt-5.4-mini",
+	codexSandbox: "workspace-write",
 	defaultPrompt: "",
 	lastOutput: "",
 	lastPrompt: "",

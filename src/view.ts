@@ -6,6 +6,7 @@ import {
 	createCodexJsonStreamState,
 	flushCodexJsonStream,
 	formatCodexUsage,
+	type CodexFileChange,
 	type CodexJsonStreamState,
 } from "./codexOutput";
 import { shouldRunPromptFromKey } from "./keyboard";
@@ -33,6 +34,12 @@ const EFFORT_OPTIONS = [
 	{ value: "xhigh", label: "XHigh" },
 ] as const;
 
+const SANDBOX_OPTIONS = [
+	{ value: "workspace-write", label: "Write" },
+	{ value: "read-only", label: "Read" },
+	{ value: "danger-full-access", label: "YOLO" },
+] as const;
+
 export class CodeianView extends ItemView {
 	private plugin: CodeianPlugin;
 	private runner = new CodexRunner();
@@ -46,7 +53,9 @@ export class CodeianView extends ItemView {
 	private statusEl: HTMLElement | null = null;
 	private modelLabelEl: HTMLElement | null = null;
 	private effortLabelEl: HTMLElement | null = null;
+	private sandboxLabelEl: HTMLElement | null = null;
 	private currentAssistantContentEl: HTMLElement | null = null;
+	private currentToolEventsEl: HTMLElement | null = null;
 	private currentAssistantMetaEl: HTMLElement | null = null;
 	private suggestionsEl: HTMLElement | null = null;
 	private promptSuggestions: PromptSuggestion[] = [];
@@ -228,6 +237,17 @@ export class CodeianView extends ItemView {
 				this.updatePickerLabels();
 			},
 		);
+		this.sandboxLabelEl = this.createMenuSelector(
+			pickerGroupEl,
+			"Access",
+			SANDBOX_OPTIONS,
+			() => this.plugin.settings.codexSandbox,
+			async (value) => {
+				this.plugin.settings.codexSandbox = value;
+				await this.plugin.saveSettings();
+				this.updatePickerLabels();
+			},
+		);
 		const actionEl = toolbarEl.createDiv({ cls: "codeian-actions" });
 		this.clearButtonEl = actionEl.createEl("button", {
 			text: "Clear",
@@ -324,6 +344,7 @@ export class CodeianView extends ItemView {
 			});
 
 			const snapshot = flushCodexJsonStream(this.jsonState);
+			this.renderFileChanges(snapshot.fileChanges);
 			if (snapshot.hasFinalOutput) {
 				this.setAssistantContent(snapshot.finalOutput);
 			}
@@ -443,8 +464,9 @@ export class CodeianView extends ItemView {
 		this.removeWelcome();
 		this.appendMessage("user", prompt);
 		const message = this.appendMessage("assistant", "Working...");
-		message.contentEl.addClass("codeian-thinking");
-		this.currentAssistantContentEl = message.contentEl;
+		message.contentEl.empty();
+		this.currentToolEventsEl = message.contentEl.createDiv({ cls: "codeian-tool-events" });
+		this.currentAssistantContentEl = message.contentEl.createDiv({ cls: "codeian-assistant-text codeian-thinking", text: "Working..." });
 		this.currentAssistantMetaEl = message.metaEl;
 		this.currentAssistantMetaEl?.setText(`Streaming · ${this.getRunMetadata()}`);
 		this.scrollMessagesToBottom();
@@ -452,6 +474,7 @@ export class CodeianView extends ItemView {
 
 	private appendStructuredCodexOutput(chunk: string): void {
 		const snapshot = appendCodexJsonChunk(this.jsonState, chunk);
+		this.renderFileChanges(snapshot.fileChanges);
 		if (snapshot.hasFinalOutput) {
 			this.setAssistantContent(snapshot.finalOutput);
 		}
@@ -490,6 +513,37 @@ export class CodeianView extends ItemView {
 		this.scrollMessagesToBottom();
 	}
 
+	private renderFileChanges(fileChanges: CodexFileChange[]): void {
+		if (!this.currentToolEventsEl) {
+			return;
+		}
+		this.currentToolEventsEl.empty();
+		for (const fileChange of fileChanges) {
+			if (fileChange.entries.length === 0) {
+				continue;
+			}
+			const detailsEl = this.currentToolEventsEl.createEl("details", { cls: "codeian-write-edit-block" });
+			const summaryEl = detailsEl.createEl("summary", { cls: "codeian-write-edit-summary" });
+			summaryEl.createSpan({ cls: "codeian-write-edit-name", text: formatToolName(fileChange.toolName) });
+			summaryEl.createSpan({ cls: `codeian-write-edit-state is-${fileChange.status}`, text: formatFileChangeStatus(fileChange.status) });
+
+			const bodyEl = detailsEl.createDiv({ cls: "codeian-write-edit-body" });
+			for (const entry of fileChange.entries) {
+				const rowEl = bodyEl.createDiv({ cls: "codeian-write-edit-row" });
+				rowEl.createSpan({ cls: "codeian-write-edit-kind", text: entry.kind });
+				rowEl.createSpan({ cls: "codeian-write-edit-path", text: entry.path });
+				const stats = formatFileChangeStats(entry.addedLines, entry.removedLines);
+				if (stats) {
+					rowEl.createSpan({ cls: "codeian-write-edit-stats", text: stats });
+				}
+				if (entry.diff) {
+					rowEl.createEl("pre", { cls: "codeian-write-edit-diff", text: entry.diff });
+				}
+			}
+		}
+		this.scrollMessagesToBottom();
+	}
+
 	private renderMarkdownContent(contentEl: HTMLElement, content: string): void {
 		contentEl.empty();
 		void MarkdownRenderer.render(this.app, content, contentEl, this.getMarkdownSourcePath(), this)
@@ -504,6 +558,7 @@ export class CodeianView extends ItemView {
 	private clearMessages(renderEmpty = true): void {
 		this.messagesEl?.empty();
 		this.currentAssistantContentEl = null;
+		this.currentToolEventsEl = null;
 		this.currentAssistantMetaEl = null;
 		this.plugin.settings.lastOutput = "";
 		if (renderEmpty) {
@@ -694,7 +749,11 @@ export class CodeianView extends ItemView {
 	}
 
 	private getRunMetadata(): string {
-		return `${this.getOptionLabel(MODEL_OPTIONS, this.plugin.settings.codexModel)} · ${this.getOptionLabel(EFFORT_OPTIONS, this.plugin.settings.codexEffort)}`;
+		return [
+			this.getOptionLabel(MODEL_OPTIONS, this.plugin.settings.codexModel),
+			this.getOptionLabel(EFFORT_OPTIONS, this.plugin.settings.codexEffort),
+			this.getOptionLabel(SANDBOX_OPTIONS, this.plugin.settings.codexSandbox),
+		].join(" · ");
 	}
 
 	private getOptionLabel<T extends string>(options: readonly { value: T; label: string }[], value: string): string {
@@ -717,6 +776,29 @@ export class CodeianView extends ItemView {
 		this.plugin.settings.lastPromptContainsNoteContext = snapshot.lastPromptContainsNoteContext;
 		await this.plugin.saveSettings();
 	}
+}
+
+function formatToolName(toolName: string): string {
+	const normalized = toolName.toLowerCase();
+	if (normalized === "apply_patch" || normalized === "file_change" || normalized === "filechange") {
+		return "File changes";
+	}
+	if (normalized === "write") return "Write";
+	if (normalized === "edit") return "Edit";
+	return toolName;
+}
+
+function formatFileChangeStatus(status: CodexFileChange["status"]): string {
+	if (status === "running") return "Running";
+	if (status === "failed") return "Failed";
+	return "Done";
+}
+
+function formatFileChangeStats(addedLines: number | undefined, removedLines: number | undefined): string {
+	const added = addedLines ?? 0;
+	const removed = removedLines ?? 0;
+	if (!added && !removed) return "";
+	return `+${added} -${removed}`;
 }
 
 function formatFailureMessage(message: string): string {
