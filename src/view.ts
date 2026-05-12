@@ -1,4 +1,4 @@
-import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import {
@@ -129,6 +129,8 @@ export class CodeianView extends ItemView {
 		this.contentEl.addClass("codeian-view");
 
 		const headerEl = this.contentEl.createDiv({ cls: "codeian-header" });
+		const brandEl = headerEl.createDiv({ cls: "codeian-brand-mark", attr: { "aria-hidden": "true" } });
+		setIcon(brandEl, "bot");
 		const titleGroupEl = headerEl.createDiv({ cls: "codeian-title-group" });
 		titleGroupEl.createEl("h3", { text: "Codeian", cls: "codeian-title" });
 		titleGroupEl.createDiv({ text: "Codex in Obsidian", cls: "codeian-subtitle" });
@@ -137,12 +139,12 @@ export class CodeianView extends ItemView {
 			cls: "clickable-icon codeian-header-button",
 			attr: { "aria-label": "New chat", title: "New chat" },
 		});
-		this.newSessionButtonEl.setText("+");
+		setIcon(this.newSessionButtonEl, "plus");
 		this.settingsButtonEl = headerActionsEl.createEl("button", {
 			cls: "clickable-icon codeian-header-button",
 			attr: { "aria-label": "Open settings", title: "Open settings" },
 		});
-		this.settingsButtonEl.setText("...");
+		setIcon(this.settingsButtonEl, "settings");
 		const statusWrapEl = headerEl.createDiv({ cls: "codeian-status-wrap" });
 		statusWrapEl.createDiv({ cls: "codeian-status-dot", attr: { "aria-hidden": "true" } });
 		this.statusEl = statusWrapEl.createDiv({
@@ -255,17 +257,20 @@ export class CodeianView extends ItemView {
 		);
 		const actionEl = toolbarEl.createDiv({ cls: "codeian-actions" });
 		this.clearButtonEl = actionEl.createEl("button", {
-			text: "Clear",
 			cls: "codeian-action-button",
+			attr: { "aria-label": "Clear conversation", title: "Clear" },
 		});
+		setIcon(this.clearButtonEl, "trash-2");
 		this.cancelButtonEl = actionEl.createEl("button", {
-			text: "Cancel",
 			cls: "codeian-action-button",
+			attr: { "aria-label": "Cancel run", title: "Cancel" },
 		});
+		setIcon(this.cancelButtonEl, "square");
 		this.runButtonEl = actionEl.createEl("button", {
-			text: "Run",
 			cls: "codeian-action-button codeian-run-button",
+			attr: { "aria-label": "Run prompt", title: "Run" },
 		});
+		setIcon(this.runButtonEl, "send");
 		this.cancelButtonEl.disabled = true;
 
 		this.newSessionButtonEl.addEventListener("click", () => {
@@ -487,7 +492,11 @@ export class CodeianView extends ItemView {
 		const message = this.appendMessage("assistant", "Working...");
 		message.contentEl.empty();
 		this.currentToolEventsEl = message.contentEl.createDiv({ cls: "codeian-tool-events" });
-		this.currentAssistantContentEl = message.contentEl.createDiv({ cls: "codeian-assistant-text codeian-thinking", text: "Working..." });
+		this.currentAssistantContentEl = message.contentEl.createDiv({ cls: "codeian-assistant-text codeian-thinking" });
+		const thinkingStackEl = this.currentAssistantContentEl.createDiv({ cls: "codeian-thinking-stack", attr: { "aria-label": "Working" } });
+		thinkingStackEl.createDiv({ cls: "codeian-thinking-line codeian-thinking-line-strong" });
+		thinkingStackEl.createDiv({ cls: "codeian-thinking-line" });
+		thinkingStackEl.createDiv({ cls: "codeian-thinking-line codeian-thinking-line-short" });
 		this.currentAssistantMetaEl = message.metaEl;
 		this.currentAssistantMetaEl?.setText(`Streaming · ${this.getRunMetadata()}`);
 		this.scrollMessagesToBottom();
