@@ -50,6 +50,7 @@ jobs:
           - Add `@` vault Markdown file suggestions in the Codeian prompt.
           - Filter candidates by typed text and insert the selected vault-relative path.
           - Refresh file suggestions when vault Markdown files are created, deleted, or renamed.
+          - Address Obsidian community plugin review lint requirements.
 
           ## Install
 

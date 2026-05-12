@@ -63,7 +63,7 @@ export default class CodeianPlugin extends Plugin {
 			});
 		}
 
-		workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 		return leaf.view instanceof CodeianView ? leaf.view : null;
 	}
 

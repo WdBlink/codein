@@ -30,6 +30,13 @@ export default tseslint.config(
 		},
 		rules: {
 			...obsidianmd.configs.recommended,
+			"no-alert": "error",
+			"@typescript-eslint/await-thenable": "error",
+			"@typescript-eslint/no-base-to-string": "error",
+			"@typescript-eslint/no-floating-promises": "error",
+			"@typescript-eslint/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
+			"@typescript-eslint/require-await": "error",
+			"@typescript-eslint/restrict-template-expressions": ["error", { "allowNumber": true }],
 			"@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
 		},
 	},

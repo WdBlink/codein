@@ -176,7 +176,7 @@ function extractFileChangeEvent(event: CodexJsonEvent): CodexFileChange | null {
 	if (payload?.type === "patch_apply_end") {
 		return {
 			entries: normalizeChanges(payload.changes),
-			id: String(payload.call_id ?? event.call_id ?? `patch-${Date.now()}`),
+			id: getString(payload.call_id) ?? event.call_id ?? `patch-${Date.now()}`,
 			status: payload.success === false ? "failed" : "completed",
 			toolName: "apply_patch",
 		};
@@ -194,13 +194,15 @@ function extractFileChangeEvent(event: CodexJsonEvent): CodexFileChange | null {
 		return null;
 	}
 
-	const entries = normalizeChanges(item.changes).concat(extractPatchEntries(String(item.input ?? "")));
+	const toolName = getString(item.name) ?? getString(item.type) ?? "file_change";
+	const itemInput = getString(item.input) ?? "";
+	const entries = normalizeChanges(item.changes).concat(extractPatchEntries(itemInput));
 	const status = event.type === "item.started" || item.status === "in_progress" ? "running" : "completed";
 	return {
 		entries: dedupeEntries(entries),
-		id: String(item.id ?? item.call_id ?? event.call_id ?? `${item.name ?? item.type}-${Date.now()}`),
+		id: getString(item.id) ?? getString(item.call_id) ?? event.call_id ?? `${toolName}-${Date.now()}`,
 		status,
-		toolName: String(item.name ?? item.type ?? "file_change"),
+		toolName,
 	};
 }
 

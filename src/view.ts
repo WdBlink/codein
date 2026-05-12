@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf } from "obsidian";
+import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import {
@@ -87,13 +87,13 @@ export class CodeianView extends ItemView {
 		return "bot";
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): Promise<void> {
 		this.render();
 		this.refreshVaultFileSuggestions();
 		this.registerEvent(this.app.vault.on("create", () => this.handleVaultFilesChanged()));
 		this.registerEvent(this.app.vault.on("delete", () => this.handleVaultFilesChanged()));
 		this.registerEvent(this.app.vault.on("rename", () => this.handleVaultFilesChanged()));
-		void this.refreshPromptSuggestionRegistry();
+		return this.refreshPromptSuggestionRegistry();
 	}
 
 	async onClose(): Promise<void> {
@@ -319,13 +319,24 @@ export class CodeianView extends ItemView {
 		}
 		this.lastPrompt = prompt;
 
-		if (this.promptContainsNoteContext && !window.confirm("This prompt includes the current note content. Send it to Codex now?")) {
-			this.setStatus("Send cancelled");
-			return;
+		if (this.promptContainsNoteContext) {
+			const sendNoteContext = await confirmCodeianAction(
+				this.app,
+				"Send note content?",
+				"This prompt includes the current note content. Send it to Codex now?",
+				"Send",
+			);
+			if (!sendNoteContext) {
+				this.setStatus("Send cancelled");
+				return;
+			}
 		}
 
 		const safetyWarning = getCodexSafetyWarning(this.plugin.settings);
-		if (safetyWarning && !window.confirm(`${safetyWarning}\n\nRun anyway?`)) {
+		const runAnyway = safetyWarning
+			? await confirmCodeianAction(this.app, "Run Codex?", `${safetyWarning}\n\nRun anyway?`, "Run")
+			: true;
+		if (!runAnyway) {
 			this.setStatus("Run cancelled");
 			return;
 		}
@@ -411,11 +422,16 @@ export class CodeianView extends ItemView {
 				lastGroup = option.group;
 			}
 			const optionEl = dropdownEl.createDiv({ cls: "codeian-selector-option", text: option.label });
-			optionEl.addEventListener("click", async (event) => {
+			optionEl.addEventListener("click", (event) => {
 				event.stopPropagation();
-				await onSelect(option.value);
-				selectorEl.removeClass("is-open");
-				buttonEl.setAttr("aria-expanded", "false");
+				void onSelect(option.value)
+					.then(() => {
+						selectorEl.removeClass("is-open");
+						buttonEl.setAttr("aria-expanded", "false");
+					})
+					.catch((error: unknown) => {
+						new Notice(formatUnknownError(error));
+					});
 			});
 		}
 
@@ -836,4 +852,70 @@ function formatFailureMessage(message: string): string {
 	}
 
 	return trimmed || "Codex failed. Check Codeian settings, then try again.";
+}
+
+function confirmCodeianAction(app: App, title: string, message: string, confirmText: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const modal = new CodeianConfirmModal(app, title, message, confirmText, resolve);
+		modal.open();
+	});
+}
+
+class CodeianConfirmModal extends Modal {
+	private resolved = false;
+
+	constructor(
+		app: App,
+		private readonly titleText: string,
+		private readonly messageText: string,
+		private readonly confirmText: string,
+		private readonly resolve: (confirmed: boolean) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.titleEl.setText(this.titleText);
+		const contentEl = this.contentEl;
+		contentEl.empty();
+		contentEl.createEl("p", { text: this.messageText });
+
+		const buttonRowEl = contentEl.createDiv({ cls: "modal-button-container" });
+		const cancelButtonEl = buttonRowEl.createEl("button", { text: "Cancel" });
+		const confirmButtonEl = buttonRowEl.createEl("button", {
+			cls: "mod-cta",
+			text: this.confirmText,
+		});
+
+		cancelButtonEl.addEventListener("click", () => {
+			this.finish(false);
+		});
+		confirmButtonEl.addEventListener("click", () => {
+			this.finish(true);
+		});
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+		this.finish(false);
+	}
+
+	private finish(confirmed: boolean): void {
+		if (this.resolved) {
+			return;
+		}
+		this.resolved = true;
+		this.resolve(confirmed);
+		this.close();
+	}
+}
+
+function formatUnknownError(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	if (typeof error === "string") {
+		return error;
+	}
+	return "Codeian action failed.";
 }

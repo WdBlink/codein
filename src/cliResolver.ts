@@ -61,7 +61,7 @@ export async function resolveCliCommand(
 	}
 
 	for (const dir of parsePathEntries(enhancedPath)) {
-		const candidate = await joinPath(dir, rawCommand);
+		const candidate = joinPath(dir, rawCommand);
 		if (await executableExists(candidate)) {
 			return {
 				command: candidate,
@@ -132,7 +132,7 @@ function joinPath(dir: string, command: string): string {
 	return normalizeFileSystemPath(path.join(dir, command));
 }
 
-async function defaultExecutableExists(filePath: string): Promise<boolean> {
+function defaultExecutableExists(filePath: string): boolean {
 	try {
 		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
 			return false;
