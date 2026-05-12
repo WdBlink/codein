@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate tag matches manifest version
+        run: |
+          VERSION="$(node -p "require('./manifest.json').version")"
+          test "v${VERSION}" = "${GITHUB_REF_NAME}"
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify release files
+        run: npm run verify:release
+
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## Changes
+
+          - Add `@` vault Markdown file suggestions in the Codeian prompt.
+          - Filter candidates by typed text and insert the selected vault-relative path.
+          - Refresh file suggestions when vault Markdown files are created, deleted, or renamed.
+
+          ## Install
+
+          Download `main.js`, `manifest.json`, and `styles.css`, then copy them into your vault's `.obsidian/plugins/codeian/` folder.
+          EOF
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" main.js manifest.json styles.css \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md
