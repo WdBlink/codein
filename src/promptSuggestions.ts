@@ -5,6 +5,7 @@ export interface PromptSuggestion {
 	value: string;
 	label: string;
 	detail: string;
+	searchText?: string;
 }
 
 export interface PromptTokenContext {
@@ -131,5 +132,6 @@ function getSuggestionSearchText(suggestion: PromptSuggestion): string {
 	return [
 		suggestion.value.slice(1),
 		suggestion.label.replace(/^[/$@#]/, ""),
+		suggestion.searchText ?? "",
 	].join(" ").toLowerCase();
 }

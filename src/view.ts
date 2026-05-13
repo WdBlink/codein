@@ -1,4 +1,4 @@
-import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf, setIcon } from "obsidian";
+import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf, normalizePath, setIcon } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import {
@@ -29,6 +29,7 @@ import {
 	updateSidebarSessionMetadata,
 } from "./sessionState";
 import { buildVaultFileSuggestions, type VaultFolderLike } from "./vaultFileSuggestions";
+import { getVaultLinkLookupPath, getVaultLinkTarget, type VaultLinkTarget } from "./vaultLinkHandler";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -794,12 +795,66 @@ export class CodeianView extends ItemView {
 	private renderMarkdownContent(contentEl: HTMLElement, content: string): void {
 		contentEl.empty();
 		void MarkdownRenderer.render(this.app, content, contentEl, this.getMarkdownSourcePath(), this)
+			.then(() => {
+				this.bindRenderedVaultLinks(contentEl);
+			})
 			.catch(() => {
 				contentEl.setText(content);
 			})
 			.finally(() => {
 				this.scrollMessagesToBottom();
 			});
+	}
+
+	private bindRenderedVaultLinks(contentEl: HTMLElement): void {
+		for (const anchor of Array.from(contentEl.querySelectorAll("a"))) {
+			anchor.addEventListener("click", (event) => {
+				const target = getVaultLinkTarget(anchor, { vaultPath: this.plugin.getVaultPath() ?? undefined });
+				if (!target) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				void this.openRenderedVaultLink(target, shouldOpenLinkInNewLeaf(event));
+			});
+		}
+	}
+
+	private async openRenderedVaultLink(target: VaultLinkTarget, newLeaf: boolean): Promise<void> {
+		const sourcePath = this.getMarkdownSourcePath();
+		if (!this.canResolveVaultLink(target.linktext, sourcePath)) {
+			new Notice(`Codeian could not find "${target.displayText}" in this vault.`);
+			return;
+		}
+
+		try {
+			await this.app.workspace.openLinkText(target.linktext, sourcePath, newLeaf);
+		} catch (error) {
+			new Notice(`Codeian could not open "${target.displayText}": ${formatUnknownError(error)}`);
+		}
+	}
+
+	private canResolveVaultLink(linktext: string, sourcePath: string): boolean {
+		const lookupPath = getVaultLinkLookupPath(linktext);
+		if (!lookupPath) {
+			return false;
+		}
+		if (this.app.metadataCache.getFirstLinkpathDest(lookupPath, sourcePath)) {
+			return true;
+		}
+
+		const exactPath = normalizePath(lookupPath);
+		const exactFile = this.app.vault.getAbstractFileByPath(exactPath);
+		if (exactFile && !("children" in exactFile)) {
+			return true;
+		}
+
+		if (!exactPath.toLowerCase().endsWith(".md")) {
+			const markdownFile = this.app.vault.getAbstractFileByPath(`${exactPath}.md`);
+			return Boolean(markdownFile && !("children" in markdownFile));
+		}
+
+		return false;
 	}
 
 	private clearMessages(renderEmpty = true): void {
@@ -1080,9 +1135,10 @@ export class CodeianView extends ItemView {
 			getAllLoadedFiles?: () => Array<VaultFolderLike & { children?: unknown }>;
 		};
 		this.suggestionRegistry.setVaultFileSuggestions(
-			buildVaultFileSuggestions(this.app.vault.getMarkdownFiles(), {
+			buildVaultFileSuggestions(getVaultFiles(vaultWithConfigDir, this.app.vault.getMarkdownFiles()), {
 				configDir: vaultWithConfigDir.configDir,
 				folders: getVaultFolders(vaultWithConfigDir),
+				vaultPath: this.plugin.getVaultPath() ?? undefined,
 			}),
 		);
 	}
@@ -1209,6 +1265,21 @@ function getVaultFolders(vault: {
 	return vault.getAllLoadedFiles()
 		.filter((entry): entry is VaultFolderLike & { children: unknown[] } => typeof entry.path === "string" && Array.isArray(entry.children))
 		.map((folder) => ({ path: folder.path }));
+}
+
+function getVaultFiles<T extends { path: string }>(
+	vault: { getAllLoadedFiles?: () => Array<T & { children?: unknown }> },
+	markdownFiles: readonly T[],
+): T[] {
+	if (typeof vault.getAllLoadedFiles !== "function") {
+		return [...markdownFiles];
+	}
+	return vault.getAllLoadedFiles()
+		.filter((entry): entry is T => typeof entry.path === "string" && !Array.isArray(entry.children));
+}
+
+function shouldOpenLinkInNewLeaf(event: MouseEvent): boolean {
+	return event.metaKey || event.ctrlKey || event.button === 1;
 }
 
 interface ConfirmOptions {

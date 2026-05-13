@@ -4,17 +4,23 @@ import { getPromptSuggestions } from "../src/promptSuggestions";
 import { buildVaultFileSuggestions } from "../src/vaultFileSuggestions";
 
 describe("vault file suggestions", () => {
-	it("creates mention suggestions from vault markdown files", () => {
-		expect(buildVaultFileSuggestions([
+	it("creates mention suggestions from vault files", () => {
+		expect(publicSuggestions(buildVaultFileSuggestions([
 			{ path: "PROJECT_BRIEF.md", basename: "PROJECT_BRIEF", extension: "md" },
 			{ path: "docs/Smoke Checklist.md", basename: "Smoke Checklist", extension: "md" },
 			{ path: "image.png", basename: "image", extension: "png" },
-		])).toEqual([
+		]))).toEqual([
 			{
 				detail: "docs/Smoke Checklist.md",
 				label: "@Smoke Checklist",
 				trigger: "@",
 				value: "@docs/Smoke Checklist.md",
+			},
+			{
+				detail: "image.png",
+				label: "@image.png",
+				trigger: "@",
+				value: "@image.png",
 			},
 			{
 				detail: "PROJECT_BRIEF.md",
@@ -26,7 +32,7 @@ describe("vault file suggestions", () => {
 	});
 
 	it("creates mention suggestions from vault folders", () => {
-		expect(buildVaultFileSuggestions([
+		expect(publicSuggestions(buildVaultFileSuggestions([
 			{ path: "PROJECT_BRIEF.md", basename: "PROJECT_BRIEF", extension: "md" },
 		], {
 			folders: [
@@ -34,7 +40,7 @@ describe("vault file suggestions", () => {
 				{ path: "LLM-Wiki/generated/transcript-source-compiler" },
 				{ path: "LLM-Wiki/generated/transcript-source-compiler" },
 			],
-		})).toEqual([
+		}))).toEqual([
 			{
 				detail: "PROJECT_BRIEF.md",
 				label: "@PROJECT_BRIEF",
@@ -72,6 +78,23 @@ describe("vault file suggestions", () => {
 		]);
 	});
 
+	it("finds vault files by path without extension and absolute vault path", () => {
+		const suggestions = buildVaultFileSuggestions([
+			{ path: "LLM-Wiki/raw/notes/手工川线下分享会.md", basename: "手工川线下分享会", extension: "md" },
+		], {
+			vaultPath: "/Users/echooo/SynologyDrive/Typora",
+		});
+		const relativePrompt = "@LLM-Wiki/raw/notes/手工川线下分享会";
+		const absolutePrompt = "@/Users/echooo/SynologyDrive/Typora/LLM-Wiki/raw/notes/手工川线下分享会";
+
+		expect(getPromptSuggestions(relativePrompt, relativePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@LLM-Wiki/raw/notes/手工川线下分享会.md",
+		]);
+		expect(getPromptSuggestions(absolutePrompt, absolutePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@LLM-Wiki/raw/notes/手工川线下分享会.md",
+		]);
+	});
+
 	it("excludes hidden, Obsidian config, git, and dependency paths", () => {
 		expect(buildVaultFileSuggestions([
 			{ path: ".config/plugins/codeian/data.md", extension: "md" },
@@ -94,9 +117,9 @@ describe("vault file suggestions", () => {
 
 	it("handles empty and files-only vaults", () => {
 		expect(buildVaultFileSuggestions([])).toEqual([]);
-		expect(buildVaultFileSuggestions([
+		expect(publicSuggestions(buildVaultFileSuggestions([
 			{ path: "notes/Visible.md", basename: "Visible", extension: "md" },
-		])).toEqual([
+		]))).toEqual([
 			{
 				detail: "notes/Visible.md",
 				label: "@Visible",
@@ -116,3 +139,10 @@ describe("vault file suggestions", () => {
 		}).map((suggestion) => suggestion.value)).toEqual(["@a.md", "@Folder Target/"]);
 	});
 });
+
+function publicSuggestions(suggestions: ReturnType<typeof buildVaultFileSuggestions>) {
+	return suggestions.map(({ searchText, ...suggestion }) => {
+		void searchText;
+		return suggestion;
+	});
+}

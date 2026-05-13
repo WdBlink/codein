@@ -14,6 +14,7 @@ export interface VaultFileSuggestionOptions {
 	configDir?: string;
 	folders?: readonly VaultFolderLike[];
 	limit?: number;
+	vaultPath?: string;
 }
 
 const IGNORED_PATH_SEGMENTS = new Set([".git", "node_modules"]);
@@ -30,13 +31,14 @@ export function buildVaultFileSuggestions(
 			...file,
 			path: normalizeVaultPath(file.path),
 		}))
-		.filter((file) => isMentionableMarkdownFile(file, configDir))
+		.filter((file) => isMentionableFile(file, configDir))
 		.sort((a, b) => a.path.localeCompare(b.path, undefined, { sensitivity: "base" }))
 		.map((file) => {
-			const basename = file.basename?.trim() || getPathBasename(file.path);
+			const basename = getFileDisplayName(file);
 			return {
 				detail: file.path,
 				label: `@${basename}`,
+				searchText: buildVaultSearchText(file.path, options.vaultPath),
 				trigger: "@",
 				value: `@${file.path}`,
 			};
@@ -50,6 +52,7 @@ export function buildVaultFileSuggestions(
 			return {
 				detail: `Folder · ${folderPath}`,
 				label: `@${basename}/`,
+				searchText: buildVaultSearchText(folderPath, options.vaultPath),
 				trigger: "@",
 				value: `@${folderPath}`,
 			};
@@ -57,11 +60,11 @@ export function buildVaultFileSuggestions(
 	return [...fileSuggestions.slice(0, limit), ...folderSuggestions.slice(0, limit)];
 }
 
-function isMentionableMarkdownFile(file: VaultFileLike, configDir: string): boolean {
+function isMentionableFile(file: VaultFileLike, configDir: string): boolean {
 	if (!file.path || pathHasIgnoredSegment(file.path, configDir)) {
 		return false;
 	}
-	return (file.extension ?? getPathExtension(file.path)).toLowerCase() === "md";
+	return Boolean(getPathBasename(file.path));
 }
 
 function isMentionableFolder(folder: VaultFolderLike, configDir: string): boolean {
@@ -95,6 +98,39 @@ function normalizeVaultPath(filePath: string): string {
 function getPathBasename(filePath: string): string {
 	const filename = filePath.split("/").pop() ?? filePath;
 	return filename.replace(/\.md$/i, "");
+}
+
+function getFileDisplayName(file: VaultFileLike): string {
+	const filename = file.path.split("/").pop() ?? file.path;
+	const extension = (file.extension ?? getPathExtension(file.path)).toLowerCase();
+	if (extension === "md") {
+		return file.basename?.trim() || filename.replace(/\.md$/i, "");
+	}
+	return file.basename?.trim() && file.extension
+		? `${file.basename.trim()}.${file.extension}`
+		: filename;
+}
+
+function buildVaultSearchText(vaultPath: string, rootPath = ""): string {
+	const normalizedPath = normalizeVaultPath(vaultPath);
+	const aliases = new Set<string>([
+		normalizedPath,
+		`/${normalizedPath}`,
+		stripMarkdownExtension(normalizedPath),
+		`/${stripMarkdownExtension(normalizedPath)}`,
+	]);
+	if (rootPath) {
+		const normalizedRootPath = normalizeVaultPath(rootPath);
+		aliases.add(`${normalizedRootPath}/${normalizedPath}`);
+		aliases.add(`${normalizedRootPath}/${stripMarkdownExtension(normalizedPath)}`);
+		aliases.add(`/${normalizedRootPath}/${normalizedPath}`);
+		aliases.add(`/${normalizedRootPath}/${stripMarkdownExtension(normalizedPath)}`);
+	}
+	return [...aliases].join(" ");
+}
+
+function stripMarkdownExtension(filePath: string): string {
+	return filePath.replace(/\.md$/i, "");
 }
 
 function getPathExtension(filePath: string): string {
