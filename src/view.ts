@@ -28,7 +28,7 @@ import {
 	updateActiveSidebarSession,
 	updateSidebarSessionMetadata,
 } from "./sessionState";
-import { buildVaultFileSuggestions } from "./vaultFileSuggestions";
+import { buildVaultFileSuggestions, type VaultFolderLike } from "./vaultFileSuggestions";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -1074,10 +1074,15 @@ export class CodeianView extends ItemView {
 	}
 
 	private refreshVaultFileSuggestions(): void {
-		const vaultWithConfigDir = this.app.vault as typeof this.app.vault & { configDir?: string };
+		const vaultWithConfigDir = this.app.vault as typeof this.app.vault & {
+			configDir?: string;
+			getAllFolders?: (includeRoot?: boolean) => VaultFolderLike[];
+			getAllLoadedFiles?: () => Array<VaultFolderLike & { children?: unknown }>;
+		};
 		this.suggestionRegistry.setVaultFileSuggestions(
 			buildVaultFileSuggestions(this.app.vault.getMarkdownFiles(), {
 				configDir: vaultWithConfigDir.configDir,
+				folders: getVaultFolders(vaultWithConfigDir),
 			}),
 		);
 	}
@@ -1189,6 +1194,21 @@ function dedupeText(items: readonly string[]): string[] {
 		result.push(text);
 	}
 	return result;
+}
+
+function getVaultFolders(vault: {
+	getAllFolders?: (includeRoot?: boolean) => VaultFolderLike[];
+	getAllLoadedFiles?: () => Array<VaultFolderLike & { children?: unknown }>;
+}): VaultFolderLike[] {
+	if (typeof vault.getAllFolders === "function") {
+		return vault.getAllFolders(false);
+	}
+	if (typeof vault.getAllLoadedFiles !== "function") {
+		return [];
+	}
+	return vault.getAllLoadedFiles()
+		.filter((entry): entry is VaultFolderLike & { children: unknown[] } => typeof entry.path === "string" && Array.isArray(entry.children))
+		.map((folder) => ({ path: folder.path }));
 }
 
 interface ConfirmOptions {

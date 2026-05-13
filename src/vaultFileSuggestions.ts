@@ -6,8 +6,13 @@ export interface VaultFileLike {
 	extension?: string;
 }
 
+export interface VaultFolderLike {
+	path: string;
+}
+
 export interface VaultFileSuggestionOptions {
 	configDir?: string;
+	folders?: readonly VaultFolderLike[];
 	limit?: number;
 }
 
@@ -20,14 +25,13 @@ export function buildVaultFileSuggestions(
 ): PromptSuggestion[] {
 	const configDir = normalizeVaultPath(options.configDir ?? "");
 	const limit = options.limit ?? MAX_VAULT_FILE_SUGGESTIONS;
-	return files
+	const fileSuggestions: PromptSuggestion[] = files
 		.map((file) => ({
 			...file,
 			path: normalizeVaultPath(file.path),
 		}))
 		.filter((file) => isMentionableMarkdownFile(file, configDir))
 		.sort((a, b) => a.path.localeCompare(b.path, undefined, { sensitivity: "base" }))
-		.slice(0, limit)
 		.map((file) => {
 			const basename = file.basename?.trim() || getPathBasename(file.path);
 			return {
@@ -37,6 +41,20 @@ export function buildVaultFileSuggestions(
 				value: `@${file.path}`,
 			};
 		});
+	const folderSuggestions: PromptSuggestion[] = uniqueFolders(options.folders ?? [])
+		.filter((folder) => isMentionableFolder(folder, configDir))
+		.sort((a, b) => a.path.localeCompare(b.path, undefined, { sensitivity: "base" }))
+		.map((folder) => {
+			const basename = getPathBasename(folder.path);
+			const folderPath = `${folder.path}/`;
+			return {
+				detail: `Folder · ${folderPath}`,
+				label: `@${basename}/`,
+				trigger: "@",
+				value: `@${folderPath}`,
+			};
+		});
+	return [...fileSuggestions.slice(0, limit), ...folderSuggestions.slice(0, limit)];
 }
 
 function isMentionableMarkdownFile(file: VaultFileLike, configDir: string): boolean {
@@ -44,6 +62,24 @@ function isMentionableMarkdownFile(file: VaultFileLike, configDir: string): bool
 		return false;
 	}
 	return (file.extension ?? getPathExtension(file.path)).toLowerCase() === "md";
+}
+
+function isMentionableFolder(folder: VaultFolderLike, configDir: string): boolean {
+	return Boolean(folder.path && !pathHasIgnoredSegment(folder.path, configDir));
+}
+
+function uniqueFolders(folders: readonly VaultFolderLike[]): VaultFolderLike[] {
+	const seen = new Set<string>();
+	const result: VaultFolderLike[] = [];
+	for (const folder of folders) {
+		const path = normalizeVaultPath(folder.path).replace(/\/+$/, "");
+		if (!path || seen.has(path)) {
+			continue;
+		}
+		seen.add(path);
+		result.push({ path });
+	}
+	return result;
 }
 
 function pathHasIgnoredSegment(filePath: string, configDir: string): boolean {
