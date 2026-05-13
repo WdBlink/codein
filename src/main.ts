@@ -3,6 +3,7 @@ import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
 import { LEGACY_CODEX_ARGS, LEGACY_CODEX_READ_ONLY_ARGS } from "./defaults";
 import { buildCurrentNoteContextPrompt } from "./promptContext";
 import { CodeianSettingTab, DEFAULT_SETTINGS, CodeianSettings } from "./settings";
+import { normalizeSidebarSessions } from "./sessionState";
 import { CodeianView, VIEW_TYPE_CODEIAN } from "./view";
 
 export default class CodeianPlugin extends Plugin {
@@ -77,6 +78,7 @@ export default class CodeianPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<CodeianSettings>);
+		normalizeSidebarSessions(this.settings);
 		if (this.settings.codexExtraArgs === LEGACY_CODEX_ARGS || this.settings.codexExtraArgs === LEGACY_CODEX_READ_ONLY_ARGS) {
 			this.settings.codexExtraArgs = DEFAULT_SETTINGS.codexExtraArgs;
 			await this.saveSettings();

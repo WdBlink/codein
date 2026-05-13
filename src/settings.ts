@@ -16,6 +16,9 @@ export interface CodeianSettings {
 	codexModel: string;
 	codexSandbox: CodexSandboxMode;
 	defaultPrompt: string;
+	activeSessionId: string;
+	sessions: CodeianSession[];
+	suppressYoloWarning: boolean;
 	workingDirectory: string;
 	lastPrompt: string;
 	lastOutput: string;
@@ -23,7 +26,19 @@ export interface CodeianSettings {
 	lastPromptContainsNoteContext: boolean;
 }
 
+export interface CodeianSession {
+	id: string;
+	title: string;
+	note: string;
+	lastPrompt: string;
+	lastOutput: string;
+	reasoning: string[];
+	lastPromptContainsNoteContext: boolean;
+	updatedAt: number;
+}
+
 export const DEFAULT_SETTINGS: CodeianSettings = {
+	activeSessionId: "",
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
@@ -34,6 +49,8 @@ export const DEFAULT_SETTINGS: CodeianSettings = {
 	lastPrompt: "",
 	lastPromptContainsNoteContext: false,
 	lastStatus: "Ready",
+	sessions: [],
+	suppressYoloWarning: false,
 	workingDirectory: "",
 };
 
@@ -84,6 +101,16 @@ export class CodeianSettingTab extends PluginSettingTab {
 				.setValue(resolveSandboxMode(this.plugin.settings.codexSandbox))
 				.onChange(async (value) => {
 					this.plugin.settings.codexSandbox = resolveSandboxMode(value);
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName("Warn before unrestricted runs")
+			.setDesc("Show the unrestricted file access reminder before running with yolo access.")
+			.addToggle((toggle) => toggle
+				.setValue(!this.plugin.settings.suppressYoloWarning)
+				.onChange(async (value) => {
+					this.plugin.settings.suppressYoloWarning = !value;
 					await this.plugin.saveSettings();
 				}));
 

@@ -14,6 +14,7 @@ import {
 } from "../src/promptSuggestionRegistry";
 
 const SETTINGS: CodeianSettings = {
+	activeSessionId: "",
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
@@ -24,6 +25,8 @@ const SETTINGS: CodeianSettings = {
 	lastPrompt: "",
 	lastPromptContainsNoteContext: false,
 	lastStatus: "Ready",
+	sessions: [],
+	suppressYoloWarning: false,
 	workingDirectory: "",
 };
 

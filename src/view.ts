@@ -8,6 +8,7 @@ import {
 	formatCodexUsage,
 	type CodexFileChange,
 	type CodexJsonStreamState,
+	type CodexReasoningItem,
 } from "./codexOutput";
 import { shouldRunPromptFromKey } from "./keyboard";
 import type CodeianPlugin from "./main";
@@ -16,7 +17,15 @@ import {
 	type PromptSuggestion,
 } from "./promptSuggestions";
 import { PromptSuggestionRegistry } from "./promptSuggestionRegistry";
-import { buildPersistedSidebarState, resolveInitialSidebarPrompt } from "./sessionState";
+import {
+	createNewSidebarSession,
+	deleteSidebarSession,
+	getActiveSidebarSession,
+	normalizeSidebarSessions,
+	switchSidebarSession,
+	updateActiveSidebarSession,
+	updateSidebarSessionMetadata,
+} from "./sessionState";
 import { buildVaultFileSuggestions } from "./vaultFileSuggestions";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
@@ -55,8 +64,12 @@ export class CodeianView extends ItemView {
 	private modelLabelEl: HTMLElement | null = null;
 	private effortLabelEl: HTMLElement | null = null;
 	private sandboxLabelEl: HTMLElement | null = null;
+	private sessionListEl: HTMLElement | null = null;
+	private sessionTitleEl: HTMLInputElement | null = null;
+	private sessionNoteEl: HTMLTextAreaElement | null = null;
 	private currentAssistantContentEl: HTMLElement | null = null;
 	private currentToolEventsEl: HTMLElement | null = null;
+	private currentReasoningEl: HTMLElement | null = null;
 	private currentAssistantMetaEl: HTMLElement | null = null;
 	private suggestionsEl: HTMLElement | null = null;
 	private promptSuggestions: PromptSuggestion[] = [];
@@ -65,14 +78,20 @@ export class CodeianView extends ItemView {
 	private jsonState: CodexJsonStreamState = createCodexJsonStreamState();
 	private diagnosticText = "";
 	private lastPrompt: string;
+	private currentAssistantOutput = "";
+	private currentReasoningItems: string[] = [];
 	private promptContainsNoteContext: boolean;
 	private running = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
 		this.plugin = plugin;
-		this.promptContainsNoteContext = plugin.settings.lastPromptContainsNoteContext;
-		this.lastPrompt = resolveInitialSidebarPrompt(plugin.settings);
+		normalizeSidebarSessions(this.plugin.settings);
+		const activeSession = getActiveSidebarSession(plugin.settings);
+		this.promptContainsNoteContext = activeSession.lastPromptContainsNoteContext;
+		this.lastPrompt = resolveSessionPrompt(activeSession.lastPrompt, activeSession.lastOutput, activeSession.lastPromptContainsNoteContext, plugin.settings.defaultPrompt);
+		this.currentAssistantOutput = activeSession.lastOutput;
+		this.currentReasoningItems = activeSession.reasoning;
 	}
 
 	getViewType(): string {
@@ -118,6 +137,12 @@ export class CodeianView extends ItemView {
 		}
 		if (containsNoteContext) {
 			this.plugin.settings.lastPrompt = "";
+			updateActiveSidebarSession(this.plugin.settings, {
+				containsNoteContext,
+				output: this.currentAssistantOutput,
+				prompt,
+				reasoning: this.currentReasoningItems,
+			});
 			await this.plugin.saveSettings();
 		} else {
 			await this.persistSessionState();
@@ -156,6 +181,8 @@ export class CodeianView extends ItemView {
 				role: "status",
 			},
 		});
+
+		this.renderSessionPanel();
 
 		const messagesWrapperEl = this.contentEl.createDiv({ cls: "codeian-messages-wrapper" });
 		this.messagesEl = messagesWrapperEl.createDiv({
@@ -297,16 +324,131 @@ export class CodeianView extends ItemView {
 
 	private renderInitialMessages(): void {
 		this.clearMessages(false);
-		if (this.plugin.settings.lastPrompt) {
-			this.appendMessage("user", this.plugin.settings.lastPrompt);
+		const activeSession = getActiveSidebarSession(this.plugin.settings);
+		this.currentAssistantOutput = activeSession.lastOutput;
+		this.currentReasoningItems = activeSession.reasoning;
+		if (activeSession.lastPrompt) {
+			this.appendMessage("user", activeSession.lastPrompt);
 		}
-		if (this.plugin.settings.lastOutput) {
-			const message = this.appendMessage("assistant", this.plugin.settings.lastOutput);
+		if (activeSession.lastOutput || activeSession.reasoning.length) {
+			const message = this.appendMessage("assistant", activeSession.lastOutput || "No final response stored for this run.", activeSession.reasoning);
 			this.currentAssistantContentEl = message.contentEl;
 			this.currentAssistantMetaEl = message.metaEl;
 		}
-		if (!this.plugin.settings.lastPrompt && !this.plugin.settings.lastOutput) {
+		if (!activeSession.lastPrompt && !activeSession.lastOutput && activeSession.reasoning.length === 0) {
 			this.renderWelcome();
+		}
+	}
+
+	private renderSessionPanel(): void {
+		const panelEl = this.contentEl.createDiv({ cls: "codeian-session-panel" });
+		const listWrapEl = panelEl.createDiv({ cls: "codeian-session-list-wrap" });
+		this.sessionListEl = listWrapEl.createDiv({
+			cls: "codeian-session-list",
+			attr: {
+				"aria-label": "Codeian sessions",
+				role: "tablist",
+			},
+		});
+		const editorEl = panelEl.createDiv({ cls: "codeian-session-editor" });
+		const activeSession = getActiveSidebarSession(this.plugin.settings);
+		const titleFieldEl = editorEl.createDiv({ cls: "codeian-session-field" });
+		titleFieldEl.createEl("label", {
+			cls: "codeian-session-label",
+			text: "Session name",
+			attr: { for: "codeian-session-title" },
+		});
+		this.sessionTitleEl = titleFieldEl.createEl("input", {
+			cls: "codeian-session-title-input",
+			value: activeSession.title,
+			attr: {
+				id: "codeian-session-title",
+				spellcheck: "false",
+				type: "text",
+			},
+		});
+		const noteFieldEl = editorEl.createDiv({ cls: "codeian-session-field" });
+		noteFieldEl.createEl("label", {
+			cls: "codeian-session-label",
+			text: "Topic note",
+			attr: { for: "codeian-session-note" },
+		});
+		this.sessionNoteEl = noteFieldEl.createEl("textarea", {
+			cls: "codeian-session-note-input",
+			text: activeSession.note,
+			attr: {
+				id: "codeian-session-note",
+				rows: "2",
+				spellcheck: "true",
+			},
+		});
+
+		this.sessionTitleEl.addEventListener("input", () => {
+			void this.persistSessionMetadata(false);
+		});
+		this.sessionTitleEl.addEventListener("blur", () => {
+			void this.persistSessionMetadata(true);
+		});
+		this.sessionNoteEl.addEventListener("input", () => {
+			void this.persistSessionMetadata(false);
+		});
+		this.sessionNoteEl.addEventListener("blur", () => {
+			void this.persistSessionMetadata(true);
+		});
+		this.renderSessionList();
+	}
+
+	private renderSessionList(): void {
+		const listEl = this.sessionListEl;
+		if (!listEl) {
+			return;
+		}
+		normalizeSidebarSessions(this.plugin.settings);
+		listEl.empty();
+		for (const [index, session] of this.plugin.settings.sessions.entries()) {
+			const isActive = session.id === this.plugin.settings.activeSessionId;
+			const rowEl = listEl.createDiv({
+				cls: `codeian-session-tab${isActive ? " is-active" : ""}`,
+				attr: {
+					"aria-selected": String(isActive),
+					role: "tab",
+					tabindex: isActive ? "0" : "-1",
+					title: session.note || session.title,
+				},
+			});
+			const buttonEl = rowEl.createEl("button", { cls: "codeian-session-switch" });
+			buttonEl.createSpan({ cls: "codeian-session-index", text: String(index + 1) });
+			const textEl = buttonEl.createSpan({ cls: "codeian-session-text" });
+			textEl.createSpan({ cls: "codeian-session-name", text: session.title });
+			if (session.note) {
+				textEl.createSpan({ cls: "codeian-session-note-preview", text: session.note });
+			}
+			buttonEl.addEventListener("click", () => {
+				if (isActive) return;
+				void this.switchSession(session.id);
+			});
+			buttonEl.addEventListener("keydown", (event) => {
+				if (event.key === "Delete" || event.key === "Backspace") {
+					event.preventDefault();
+					void this.deleteSession(session.id);
+				}
+			});
+			rowEl.addEventListener("contextmenu", (event) => {
+				event.preventDefault();
+				void this.deleteSession(session.id);
+			});
+			const deleteButtonEl = rowEl.createEl("button", {
+				cls: "clickable-icon codeian-session-delete",
+				attr: {
+					"aria-label": `Delete ${session.title}`,
+					title: "Delete session",
+				},
+			});
+			setIcon(deleteButtonEl, "x");
+			deleteButtonEl.addEventListener("click", (event) => {
+				event.stopPropagation();
+				void this.deleteSession(session.id);
+			});
 		}
 	}
 
@@ -331,16 +473,14 @@ export class CodeianView extends ItemView {
 				"This prompt includes the current note content. Send it to Codex now?",
 				"Send",
 			);
-			if (!sendNoteContext) {
+			if (!sendNoteContext.confirmed) {
 				this.setStatus("Send cancelled");
 				return;
 			}
 		}
 
 		const safetyWarning = getCodexSafetyWarning(this.plugin.settings);
-		const runAnyway = safetyWarning
-			? await confirmCodeianAction(this.app, "Run Codex?", `${safetyWarning}\n\nRun anyway?`, "Run")
-			: true;
+		const runAnyway = safetyWarning ? await this.confirmSafetyWarning(safetyWarning) : true;
 		if (!runAnyway) {
 			this.setStatus("Run cancelled");
 			return;
@@ -348,7 +488,8 @@ export class CodeianView extends ItemView {
 
 		this.setRunning(true);
 		this.clearComposer();
-		this.plugin.settings.lastOutput = "";
+		this.currentAssistantOutput = "";
+		this.currentReasoningItems = [];
 		await this.persistSessionState(prompt);
 		this.setStatus(`Running · ${this.getRunMetadata()}`);
 		this.beginRunMessage(prompt);
@@ -366,6 +507,7 @@ export class CodeianView extends ItemView {
 
 			const snapshot = flushCodexJsonStream(this.jsonState);
 			this.renderFileChanges(snapshot.fileChanges);
+			this.renderReasoningHistory(snapshot.reasoningItems);
 			if (snapshot.hasFinalOutput) {
 				this.setAssistantContent(snapshot.finalOutput);
 			}
@@ -396,6 +538,27 @@ export class CodeianView extends ItemView {
 			this.setRunning(false);
 			await this.persistSessionState(prompt);
 		}
+	}
+
+	private async confirmSafetyWarning(safetyWarning: string): Promise<boolean> {
+		const isYoloWarning = this.plugin.settings.codexSandbox === "danger-full-access"
+			&& safetyWarning.toLowerCase().includes("unrestricted");
+		if (isYoloWarning && this.plugin.settings.suppressYoloWarning) {
+			return true;
+		}
+
+		const result = await confirmCodeianAction(
+			this.app,
+			isYoloWarning ? "Unrestricted file access" : "Run Codex?",
+			`${safetyWarning}\n\nRun anyway?`,
+			"Run",
+			isYoloWarning ? { checkboxLabel: "Do not show this YOLO warning again" } : undefined,
+		);
+		if (result.confirmed && result.checked && isYoloWarning) {
+			this.plugin.settings.suppressYoloWarning = true;
+			await this.plugin.saveSettings();
+		}
+		return result.confirmed;
 	}
 
 	private createMenuSelector<T extends string>(
@@ -505,12 +668,13 @@ export class CodeianView extends ItemView {
 	private appendStructuredCodexOutput(chunk: string): void {
 		const snapshot = appendCodexJsonChunk(this.jsonState, chunk);
 		this.renderFileChanges(snapshot.fileChanges);
+		this.renderReasoningHistory(snapshot.reasoningItems);
 		if (snapshot.hasFinalOutput) {
 			this.setAssistantContent(snapshot.finalOutput);
 		}
 	}
 
-	private appendMessage(role: "assistant" | "system" | "user", content: string): { contentEl: HTMLElement; metaEl: HTMLElement | null } {
+	private appendMessage(role: "assistant" | "system" | "user", content: string, reasoningItems: readonly string[] = []): { contentEl: HTMLElement; metaEl: HTMLElement | null } {
 		this.removeWelcome();
 		const messagesEl = this.messagesEl;
 		if (!messagesEl) {
@@ -520,7 +684,11 @@ export class CodeianView extends ItemView {
 		const messageEl = messagesEl.createDiv({ cls: `codeian-message codeian-message-${role}` });
 		const contentEl = messageEl.createDiv({ cls: "codeian-message-content" });
 		if (role === "assistant") {
-			this.renderMarkdownContent(contentEl, content);
+			if (reasoningItems.length > 0) {
+				this.renderReasoningHistory(reasoningItems.map((text, index) => ({ id: `stored-${index}`, text })), contentEl);
+			}
+			const assistantTextEl = contentEl.createDiv({ cls: "codeian-assistant-text" });
+			this.renderMarkdownContent(assistantTextEl, content);
 		} else {
 			contentEl.setText(content);
 		}
@@ -539,7 +707,45 @@ export class CodeianView extends ItemView {
 			this.renderMarkdownContent(this.currentAssistantContentEl, content);
 		}
 		this.currentAssistantMetaEl?.setText(this.getRunMetadata());
+		this.currentAssistantOutput = content;
 		this.plugin.settings.lastOutput = content;
+		this.scrollMessagesToBottom();
+	}
+
+	private renderReasoningHistory(items: readonly CodexReasoningItem[], parentEl = this.currentToolEventsEl): void {
+		const targetEl = parentEl;
+		if (!targetEl) {
+			return;
+		}
+
+		const reasoningTexts = dedupeText(items.map((item) => item.text).filter(Boolean));
+		this.currentReasoningItems = reasoningTexts;
+		if (reasoningTexts.length === 0) {
+			if (targetEl === this.currentToolEventsEl) {
+				this.currentReasoningEl?.remove();
+				this.currentReasoningEl = null;
+			}
+			return;
+		}
+
+		let blockEl: HTMLElement;
+		if (targetEl === this.currentToolEventsEl) {
+			if (!this.currentReasoningEl) {
+				this.currentReasoningEl = targetEl.createEl("details", { cls: "codeian-reasoning-block" });
+			}
+			blockEl = this.currentReasoningEl;
+		} else {
+			blockEl = targetEl.createEl("details", { cls: "codeian-reasoning-block" });
+		}
+
+		blockEl.empty();
+		const summaryEl = blockEl.createEl("summary", { cls: "codeian-reasoning-summary" });
+		summaryEl.createSpan({ cls: "codeian-reasoning-title", text: "Reasoning history" });
+		summaryEl.createSpan({ cls: "codeian-reasoning-count", text: String(reasoningTexts.length) });
+		const bodyEl = blockEl.createDiv({ cls: "codeian-reasoning-body" });
+		for (const text of reasoningTexts) {
+			bodyEl.createDiv({ cls: "codeian-reasoning-item", text });
+		}
 		this.scrollMessagesToBottom();
 	}
 
@@ -589,7 +795,10 @@ export class CodeianView extends ItemView {
 		this.messagesEl?.empty();
 		this.currentAssistantContentEl = null;
 		this.currentToolEventsEl = null;
+		this.currentReasoningEl = null;
 		this.currentAssistantMetaEl = null;
+		this.currentAssistantOutput = "";
+		this.currentReasoningItems = [];
 		this.plugin.settings.lastOutput = "";
 		if (renderEmpty) {
 			this.renderWelcome();
@@ -641,17 +850,91 @@ export class CodeianView extends ItemView {
 	}
 
 	private async newSession(): Promise<void> {
-		this.lastPrompt = this.plugin.settings.defaultPrompt || "";
+		await this.persistSessionState();
+		const session = createNewSidebarSession(this.plugin.settings);
+		this.lastPrompt = resolveSessionPrompt(session.lastPrompt, session.lastOutput, session.lastPromptContainsNoteContext, this.plugin.settings.defaultPrompt);
 		this.promptContainsNoteContext = false;
-		this.plugin.settings.lastPromptContainsNoteContext = false;
+		this.currentAssistantOutput = "";
+		this.currentReasoningItems = [];
 		if (this.promptEl) {
 			this.promptEl.value = this.lastPrompt;
 			this.promptEl.focus();
 			this.updatePromptSuggestions();
 		}
 		this.clearMessages();
+		this.renderSessionList();
+		this.updateSessionEditor();
 		this.setStatus("Ready");
+		await this.plugin.saveSettings();
+	}
+
+	private async switchSession(sessionId: string): Promise<void> {
+		if (this.running) {
+			new Notice("Cancel the running task before switching sessions.");
+			return;
+		}
 		await this.persistSessionState();
+		const session = switchSidebarSession(this.plugin.settings, sessionId);
+		this.lastPrompt = resolveSessionPrompt(session.lastPrompt, session.lastOutput, session.lastPromptContainsNoteContext, this.plugin.settings.defaultPrompt);
+		this.promptContainsNoteContext = session.lastPromptContainsNoteContext;
+		this.currentAssistantOutput = session.lastOutput;
+		this.currentReasoningItems = session.reasoning;
+		if (this.promptEl) {
+			this.promptEl.value = this.lastPrompt;
+			this.updatePromptSuggestions();
+		}
+		this.renderInitialMessages();
+		this.renderSessionList();
+		this.updateSessionEditor();
+		this.setStatus(this.plugin.settings.lastStatus || "Ready");
+		await this.plugin.saveSettings();
+	}
+
+	private async deleteSession(sessionId: string): Promise<void> {
+		if (this.running) {
+			new Notice("Cancel the running task before deleting sessions.");
+			return;
+		}
+		const wasActive = sessionId === this.plugin.settings.activeSessionId;
+		deleteSidebarSession(this.plugin.settings, sessionId);
+		if (wasActive) {
+			const session = getActiveSidebarSession(this.plugin.settings);
+			this.lastPrompt = resolveSessionPrompt(session.lastPrompt, session.lastOutput, session.lastPromptContainsNoteContext, this.plugin.settings.defaultPrompt);
+			this.promptContainsNoteContext = session.lastPromptContainsNoteContext;
+			this.currentAssistantOutput = session.lastOutput;
+			this.currentReasoningItems = session.reasoning;
+			if (this.promptEl) {
+				this.promptEl.value = this.lastPrompt;
+				this.updatePromptSuggestions();
+			}
+			this.renderInitialMessages();
+			this.updateSessionEditor();
+		}
+		this.renderSessionList();
+		await this.plugin.saveSettings();
+	}
+
+	private async persistSessionMetadata(renderList: boolean): Promise<void> {
+		const activeSession = getActiveSidebarSession(this.plugin.settings);
+		updateSidebarSessionMetadata(this.plugin.settings, activeSession.id, {
+			note: this.sessionNoteEl?.value ?? activeSession.note,
+			title: this.sessionTitleEl?.value ?? activeSession.title,
+		});
+		if (renderList) {
+			this.renderSessionList();
+			this.updateSessionEditor();
+		}
+		await this.plugin.saveSettings();
+	}
+
+	private updateSessionEditor(): void {
+		const activeSession = getActiveSidebarSession(this.plugin.settings);
+		if (this.sessionTitleEl && document.activeElement !== this.sessionTitleEl) {
+			this.sessionTitleEl.value = activeSession.title;
+		}
+		if (this.sessionNoteEl && document.activeElement !== this.sessionNoteEl) {
+			this.sessionNoteEl.value = activeSession.note;
+		}
 	}
 
 	private openSettings(): void {
@@ -811,14 +1094,14 @@ export class CodeianView extends ItemView {
 
 	private async persistSessionState(promptOverride?: string): Promise<void> {
 		this.plugin.settings.lastPromptContainsNoteContext = this.promptContainsNoteContext;
-		const snapshot = buildPersistedSidebarState(
-			promptOverride ?? this.promptEl?.value ?? this.lastPrompt,
-			this.plugin.settings.lastOutput,
-			this.promptContainsNoteContext,
-		);
-		this.plugin.settings.lastPrompt = snapshot.lastPrompt;
-		this.plugin.settings.lastOutput = snapshot.lastOutput;
-		this.plugin.settings.lastPromptContainsNoteContext = snapshot.lastPromptContainsNoteContext;
+		updateActiveSidebarSession(this.plugin.settings, {
+			containsNoteContext: this.promptContainsNoteContext,
+			output: this.currentAssistantOutput,
+			prompt: promptOverride ?? this.promptEl?.value ?? this.lastPrompt,
+			reasoning: this.currentReasoningItems,
+		});
+		this.renderSessionList();
+		this.updateSessionEditor();
 		await this.plugin.saveSettings();
 	}
 }
@@ -863,9 +1146,42 @@ function formatFailureMessage(message: string): string {
 	return trimmed || "Codex failed. Check Codeian settings, then try again.";
 }
 
-function confirmCodeianAction(app: App, title: string, message: string, confirmText: string): Promise<boolean> {
+function resolveSessionPrompt(lastPrompt: string, lastOutput: string, containsNoteContext: boolean, defaultPrompt: string): string {
+	if (containsNoteContext) {
+		return "";
+	}
+	if (lastOutput) {
+		return defaultPrompt || "";
+	}
+	return lastPrompt || defaultPrompt || "";
+}
+
+function dedupeText(items: readonly string[]): string[] {
+	const seen = new Set<string>();
+	const result: string[] = [];
+	for (const item of items) {
+		const text = item.trim();
+		if (!text || seen.has(text)) {
+			continue;
+		}
+		seen.add(text);
+		result.push(text);
+	}
+	return result;
+}
+
+interface ConfirmOptions {
+	checkboxLabel?: string;
+}
+
+interface ConfirmResult {
+	confirmed: boolean;
+	checked: boolean;
+}
+
+function confirmCodeianAction(app: App, title: string, message: string, confirmText: string, options: ConfirmOptions = {}): Promise<ConfirmResult> {
 	return new Promise((resolve) => {
-		const modal = new CodeianConfirmModal(app, title, message, confirmText, resolve);
+		const modal = new CodeianConfirmModal(app, title, message, confirmText, options, resolve);
 		modal.open();
 	});
 }
@@ -878,7 +1194,8 @@ class CodeianConfirmModal extends Modal {
 		private readonly titleText: string,
 		private readonly messageText: string,
 		private readonly confirmText: string,
-		private readonly resolve: (confirmed: boolean) => void,
+		private readonly options: ConfirmOptions,
+		private readonly resolve: (result: ConfirmResult) => void,
 	) {
 		super(app);
 	}
@@ -888,6 +1205,12 @@ class CodeianConfirmModal extends Modal {
 		const contentEl = this.contentEl;
 		contentEl.empty();
 		contentEl.createEl("p", { text: this.messageText });
+		let checkboxEl: HTMLInputElement | null = null;
+		if (this.options.checkboxLabel) {
+			const checkboxWrapEl = contentEl.createEl("label", { cls: "codeian-confirm-checkbox" });
+			checkboxEl = checkboxWrapEl.createEl("input", { attr: { type: "checkbox" } });
+			checkboxWrapEl.createSpan({ text: this.options.checkboxLabel });
+		}
 
 		const buttonRowEl = contentEl.createDiv({ cls: "modal-button-container" });
 		const cancelButtonEl = buttonRowEl.createEl("button", { text: "Cancel" });
@@ -897,24 +1220,24 @@ class CodeianConfirmModal extends Modal {
 		});
 
 		cancelButtonEl.addEventListener("click", () => {
-			this.finish(false);
+			this.finish(false, checkboxEl?.checked ?? false);
 		});
 		confirmButtonEl.addEventListener("click", () => {
-			this.finish(true);
+			this.finish(true, checkboxEl?.checked ?? false);
 		});
 	}
 
 	onClose(): void {
 		this.contentEl.empty();
-		this.finish(false);
+		this.finish(false, false);
 	}
 
-	private finish(confirmed: boolean): void {
+	private finish(confirmed: boolean, checked: boolean): void {
 		if (this.resolved) {
 			return;
 		}
 		this.resolved = true;
-		this.resolve(confirmed);
+		this.resolve({ checked, confirmed });
 		this.close();
 	}
 }

@@ -19,10 +19,16 @@ export interface CodexFileChange {
 	entries: CodexFileChangeEntry[];
 }
 
+export interface CodexReasoningItem {
+	id: string;
+	text: string;
+}
+
 export interface CodexJsonStreamState {
 	finalOutput: string;
 	fileChanges: CodexFileChange[];
 	pendingLine: string;
+	reasoningItems: CodexReasoningItem[];
 	usage: CodexUsageSummary | null;
 	errorText: string;
 	eventCount: number;
@@ -35,6 +41,7 @@ export interface CodexOutputSnapshot {
 	errorText: string;
 	eventCount: number;
 	fileChanges: CodexFileChange[];
+	reasoningItems: CodexReasoningItem[];
 }
 
 interface CodexJsonEvent {
@@ -44,7 +51,9 @@ interface CodexJsonEvent {
 	item?: {
 		id?: string;
 		call_id?: string;
+		content?: unknown;
 		name?: string;
+		summary?: unknown;
 		type?: string;
 		text?: string;
 		status?: string;
@@ -69,6 +78,7 @@ export function createCodexJsonStreamState(): CodexJsonStreamState {
 		fileChanges: [],
 		finalOutput: "",
 		pendingLine: "",
+		reasoningItems: [],
 		usage: null,
 	};
 }
@@ -100,6 +110,7 @@ export function buildCodexOutputSnapshot(state: CodexJsonStreamState): CodexOutp
 		fileChanges: state.fileChanges,
 		finalOutput: state.finalOutput.trim(),
 		hasFinalOutput: state.finalOutput.trim().length > 0,
+		reasoningItems: state.reasoningItems,
 		usage: state.usage,
 	};
 }
@@ -139,6 +150,11 @@ function consumeCodexJsonLine(state: CodexJsonStreamState, line: string): void {
 		upsertFileChange(state, fileChange);
 	}
 
+	const reasoningItem = extractReasoningItem(event);
+	if (reasoningItem) {
+		upsertReasoningItem(state, reasoningItem);
+	}
+
 	if (event.type === "item.completed" && event.item?.type === "agent_message" && typeof event.item.text === "string") {
 		state.finalOutput = event.item.text;
 		return;
@@ -169,6 +185,88 @@ function upsertFileChange(state: CodexJsonStreamState, change: CodexFileChange):
 		return;
 	}
 	state.fileChanges.push(change);
+}
+
+function upsertReasoningItem(state: CodexJsonStreamState, item: CodexReasoningItem): void {
+	const existing = state.reasoningItems.findIndex((candidate) => candidate.id === item.id || candidate.text === item.text);
+	if (existing >= 0) {
+		state.reasoningItems[existing] = item;
+		return;
+	}
+	state.reasoningItems.push(item);
+	if (state.reasoningItems.length > 24) {
+		state.reasoningItems = state.reasoningItems.slice(-24);
+	}
+}
+
+function extractReasoningItem(event: CodexJsonEvent): CodexReasoningItem | null {
+	const payload = asRecord(event.payload);
+	const item = asRecord(event.item) ?? asRecord(payload?.item);
+	const eventType = normalizeToolName(event.type);
+	const payloadType = normalizeToolName(payload?.type);
+	const itemType = normalizeToolName(item?.type);
+	const itemName = normalizeToolName(item?.name);
+	const isReasoning = [eventType, payloadType, itemType, itemName].some((value) => (
+		value.includes("reasoning") || value.includes("thinking")
+	));
+	if (!isReasoning) {
+		return null;
+	}
+
+	const text = sanitizeReasoningText([
+		...extractTextFragments(item?.summary),
+		...extractTextFragments(item?.text),
+		...extractTextFragments(item?.content),
+		...extractTextFragments(payload?.summary),
+		...extractTextFragments(payload?.text),
+		...extractTextFragments(payload?.content),
+		...extractTextFragments(event.message),
+		...extractTextFragments(event.content),
+	].join("\n"));
+	if (!text) {
+		return null;
+	}
+
+	return {
+		id: getString(item?.id) ?? getString(item?.call_id) ?? getString(payload?.id) ?? getString(payload?.call_id) ?? `${eventType || payloadType || itemType}-${text.slice(0, 24)}`,
+		text,
+	};
+}
+
+function extractTextFragments(value: unknown): string[] {
+	if (typeof value === "string") {
+		return [value];
+	}
+	if (Array.isArray(value)) {
+		return value.flatMap((entry) => extractTextFragments(entry));
+	}
+	const record = asRecord(value);
+	if (!record) {
+		return [];
+	}
+	return [
+		...extractTextFragments(record.text),
+		...extractTextFragments(record.summary),
+		...extractTextFragments(record.content),
+		...extractTextFragments(record.message),
+	];
+}
+
+function sanitizeReasoningText(value: string): string {
+	const normalized = value
+		.replace(/\r\n/g, "\n")
+		.split("\n")
+		.map((line) => line.replace(/\s+/g, " ").trim())
+		.filter(Boolean)
+		.join("\n")
+		.trim();
+	if (!/[\p{L}\p{N}]/u.test(normalized)) {
+		return "";
+	}
+	if (normalized.length <= 1400) {
+		return normalized;
+	}
+	return normalized.slice(0, 1399).trimEnd();
 }
 
 function extractFileChangeEvent(event: CodexJsonEvent): CodexFileChange | null {

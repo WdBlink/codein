@@ -10,6 +10,7 @@ import { DEFAULT_CODEX_ARGS } from "../src/defaults";
 import type { CodeianSettings } from "../src/settings";
 
 const SETTINGS: CodeianSettings = {
+	activeSessionId: "",
 	codexCommand: "codex",
 	codexExtraArgs: DEFAULT_CODEX_ARGS,
 	codexEffort: "medium",
@@ -20,6 +21,8 @@ const SETTINGS: CodeianSettings = {
 	lastPrompt: "",
 	lastPromptContainsNoteContext: false,
 	lastStatus: "Ready",
+	sessions: [],
+	suppressYoloWarning: false,
 	workingDirectory: "",
 };
 

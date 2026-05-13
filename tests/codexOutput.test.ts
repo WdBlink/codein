@@ -46,6 +46,42 @@ describe("Codex JSON output parsing", () => {
 		expect(snapshot.errorText).toContain("OpenAI Codex");
 	});
 
+	it("preserves concise reasoning summary items outside the final output", () => {
+		const state = createCodexJsonStreamState();
+		appendCodexJsonChunk(state, [
+			JSON.stringify({
+				type: "item.completed",
+				item: {
+					id: "reasoning_1",
+					type: "reasoning",
+					summary: [{ text: "Checked the sidebar state model before changing persistence." }],
+				},
+			}),
+			JSON.stringify({
+				type: "event_msg",
+				payload: {
+					id: "reasoning_2",
+					type: "reasoning_summary",
+					content: "Chose a five-session cap to keep the sidebar compact.",
+				},
+			}),
+			"{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Final only\"}}",
+		].join("\n") + "\n");
+
+		const snapshot = flushCodexJsonStream(state);
+		expect(snapshot.finalOutput).toBe("Final only");
+		expect(snapshot.reasoningItems).toEqual([
+			{
+				id: "reasoning_1",
+				text: "Checked the sidebar state model before changing persistence.",
+			},
+			{
+				id: "reasoning_2",
+				text: "Chose a five-session cap to keep the sidebar compact.",
+			},
+		]);
+	});
+
 	it("extracts apply_patch file change events without mixing them into final output", () => {
 		const state = createCodexJsonStreamState();
 		appendCodexJsonChunk(state, JSON.stringify({
