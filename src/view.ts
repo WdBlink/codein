@@ -1,4 +1,4 @@
-import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf, normalizePath, setIcon } from "obsidian";
+import { App, ItemView, MarkdownRenderer, Modal, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 
 import { CodexRunner, getCodexSafetyWarning } from "./codexRunner";
 import {
@@ -29,7 +29,7 @@ import {
 	updateSidebarSessionMetadata,
 } from "./sessionState";
 import { buildVaultFileSuggestions, type VaultFolderLike } from "./vaultFileSuggestions";
-import { getVaultLinkLookupPath, getVaultLinkTarget, type VaultLinkTarget } from "./vaultLinkHandler";
+import { getVaultLinkTarget, resolveVaultFileLink, type VaultLinkTarget } from "./vaultLinkHandler";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -822,39 +822,17 @@ export class CodeianView extends ItemView {
 
 	private async openRenderedVaultLink(target: VaultLinkTarget, newLeaf: boolean): Promise<void> {
 		const sourcePath = this.getMarkdownSourcePath();
-		if (!this.canResolveVaultLink(target.linktext, sourcePath)) {
+		const resolvedPath = resolveVaultFileLink(this.app.vault, target.linktext, sourcePath);
+		if (!resolvedPath) {
 			new Notice(`Codeian could not find "${target.displayText}" in this vault.`);
 			return;
 		}
 
 		try {
-			await this.app.workspace.openLinkText(target.linktext, sourcePath, newLeaf);
+			await this.app.workspace.openLinkText(resolvedPath, sourcePath, newLeaf);
 		} catch (error) {
 			new Notice(`Codeian could not open "${target.displayText}": ${formatUnknownError(error)}`);
 		}
-	}
-
-	private canResolveVaultLink(linktext: string, sourcePath: string): boolean {
-		const lookupPath = getVaultLinkLookupPath(linktext);
-		if (!lookupPath) {
-			return false;
-		}
-		if (this.app.metadataCache.getFirstLinkpathDest(lookupPath, sourcePath)) {
-			return true;
-		}
-
-		const exactPath = normalizePath(lookupPath);
-		const exactFile = this.app.vault.getAbstractFileByPath(exactPath);
-		if (exactFile && !("children" in exactFile)) {
-			return true;
-		}
-
-		if (!exactPath.toLowerCase().endsWith(".md")) {
-			const markdownFile = this.app.vault.getAbstractFileByPath(`${exactPath}.md`);
-			return Boolean(markdownFile && !("children" in markdownFile));
-		}
-
-		return false;
 	}
 
 	private clearMessages(renderEmpty = true): void {

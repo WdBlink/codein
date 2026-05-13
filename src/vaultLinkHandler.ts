@@ -13,6 +13,11 @@ export interface VaultLinkTargetOptions {
 	vaultPath?: string;
 }
 
+export interface VaultFileResolverLike {
+	getAbstractFileByPath: (path: string) => { path: string; children?: unknown } | null;
+	getFiles: () => Array<{ path: string }>;
+}
+
 const EXTERNAL_SCHEMES = new Set(["http:", "https:", "mailto:", "obsidian:", "tel:"]);
 
 export function getVaultLinkTarget(anchor: AnchorLike, options: VaultLinkTargetOptions = {}): VaultLinkTarget | null {
@@ -59,6 +64,41 @@ export function getVaultLinkLookupPath(linktext: string): string {
 		.trim() ?? "";
 }
 
+export function resolveVaultFileLink(
+	vault: VaultFileResolverLike,
+	linktext: string,
+	sourcePath = "",
+): string | null {
+	const candidates = getVaultLinkCandidates(linktext, sourcePath);
+	for (const candidate of candidates) {
+		const exact = vault.getAbstractFileByPath(candidate);
+		if (exact && !("children" in exact)) {
+			return exact.path;
+		}
+	}
+
+	const looseCandidates = new Set<string>();
+	for (const candidate of candidates) {
+		looseCandidates.add(toLooseLinkKey(candidate));
+		looseCandidates.add(toLooseLinkKey(stripMarkdownExtension(candidate)));
+	}
+	for (const file of vault.getFiles()) {
+		const aliases = getLooseFileAliases(file.path);
+		if (aliases.some((alias) => looseCandidates.has(alias))) {
+			return file.path;
+		}
+	}
+	return null;
+}
+
+export function toLooseLinkKey(value: string): string {
+	return stripMarkdownExtension(value)
+		.normalize("NFKC")
+		.toLowerCase()
+		.replace(/[（(][^（）()]*[）)]/g, "")
+		.replace(/[\\/\s\-_.。,，、:：;；'"“”‘’`~!！?？[\]{}<>《》|]+/g, "");
+}
+
 function isIgnoredScheme(target: string): boolean {
 	const schemeMatch = target.match(/^[a-z][a-z0-9+.-]*:/i);
 	if (!schemeMatch?.[0]) {
@@ -101,6 +141,47 @@ function stripLeadingMention(target: string): string {
 
 function normalizeSlashes(target: string): string {
 	return target.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+}
+
+function getVaultLinkCandidates(linktext: string, sourcePath: string): string[] {
+	const lookupPath = getVaultLinkLookupPath(linktext);
+	if (!lookupPath) {
+		return [];
+	}
+	const candidates = new Set<string>();
+	addPathCandidates(candidates, lookupPath);
+	if (sourcePath && !lookupPath.includes("/")) {
+		const sourceDir = sourcePath.split("/").slice(0, -1).join("/");
+		if (sourceDir) {
+			addPathCandidates(candidates, `${sourceDir}/${lookupPath}`);
+		}
+	}
+	return [...candidates];
+}
+
+function addPathCandidates(candidates: Set<string>, path: string): void {
+	const normalized = normalizeSlashes(path).replace(/^\.\//, "").replace(/^\/+/, "").trim();
+	if (!normalized) {
+		return;
+	}
+	candidates.add(normalized);
+	if (!normalized.toLowerCase().endsWith(".md")) {
+		candidates.add(`${normalized}.md`);
+	}
+}
+
+function getLooseFileAliases(filePath: string): string[] {
+	const withoutExtension = stripMarkdownExtension(filePath);
+	const basename = withoutExtension.split("/").pop() ?? withoutExtension;
+	return [
+		toLooseLinkKey(filePath),
+		toLooseLinkKey(withoutExtension),
+		toLooseLinkKey(basename),
+	];
+}
+
+function stripMarkdownExtension(filePath: string): string {
+	return filePath.replace(/\.md$/i, "");
 }
 
 function stripVaultPath(target: string, vaultPath = ""): string {

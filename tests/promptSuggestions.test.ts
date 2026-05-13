@@ -25,6 +25,17 @@ describe("prompt suggestions", () => {
 		expect(getPromptSuggestions("@cur", 4).map((suggestion) => suggestion.value)).toEqual(["@current-note"]);
 	});
 
+	it("keeps at-file token context across spaces and Chinese punctuation", () => {
+		const prompt = "@LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论";
+
+		expect(getPromptTokenContext(prompt, prompt.length)).toEqual({
+			end: prompt.length,
+			query: "llm-wiki/raw/notes/和 gpt 关于向量世界（ai 世界）什么最重要的讨论",
+			start: 0,
+			trigger: "@",
+		});
+	});
+
 	it("matches mention candidates by label, value, and detail", () => {
 		const suggestions = [
 			{ trigger: "@", value: "@docs/Long Path.md", label: "@Long Path", detail: "docs/Long Path.md" },

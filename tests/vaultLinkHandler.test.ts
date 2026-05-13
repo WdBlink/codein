@@ -4,7 +4,10 @@ import {
 	getVaultLinkLookupPath,
 	getVaultLinkTarget,
 	normalizeVaultLinkTarget,
+	resolveVaultFileLink,
+	toLooseLinkKey,
 	type AnchorLike,
+	type VaultFileResolverLike,
 } from "../src/vaultLinkHandler";
 
 describe("vault link handler", () => {
@@ -46,6 +49,24 @@ describe("vault link handler", () => {
 		expect(getVaultLinkLookupPath("Folder/Note.md#^block-id")).toBe("Folder/Note.md");
 		expect(getVaultLinkLookupPath("Folder/")).toBe("Folder");
 	});
+
+	it("resolves exact vault files and markdown-extension fallbacks", () => {
+		const vault = createVault(["LLM-Wiki/raw/notes/手工川线下分享会.md"]);
+
+		expect(resolveVaultFileLink(vault, "LLM-Wiki/raw/notes/手工川线下分享会")).toBe("LLM-Wiki/raw/notes/手工川线下分享会.md");
+	});
+
+	it("resolves loose assistant links that omit spaces and parenthetical qualifiers", () => {
+		const vault = createVault([
+			"LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md",
+		]);
+
+		expect(resolveVaultFileLink(vault, "和GPT关于向量世界什么最重要的讨论.md")).toBe("LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md");
+	});
+
+	it("normalizes loose link keys for Chinese names", () => {
+		expect(toLooseLinkKey("和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md")).toBe("和gpt关于向量世界什么最重要的讨论");
+	});
 });
 
 function createAnchor(input: { dataHref?: string; href?: string; text?: string }): AnchorLike {
@@ -61,5 +82,12 @@ function createAnchor(input: { dataHref?: string; href?: string; text?: string }
 			return null;
 		},
 		textContent: input.text ?? "",
+	};
+}
+
+function createVault(paths: string[]): VaultFileResolverLike {
+	return {
+		getAbstractFileByPath: (path) => paths.includes(path) ? { path } : null,
+		getFiles: () => paths.map((path) => ({ path })),
 	};
 }

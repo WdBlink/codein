@@ -78,20 +78,29 @@ describe("vault file suggestions", () => {
 		]);
 	});
 
-	it("finds vault files by path without extension and absolute vault path", () => {
+	it("finds vault files by path without extension, absolute vault path, spaces, and Chinese punctuation", () => {
 		const suggestions = buildVaultFileSuggestions([
 			{ path: "LLM-Wiki/raw/notes/手工川线下分享会.md", basename: "手工川线下分享会", extension: "md" },
+			{
+				path: "LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md",
+				basename: "和 GPT 关于向量世界（AI 世界）什么最重要的讨论",
+				extension: "md",
+			},
 		], {
 			vaultPath: "/Users/echooo/SynologyDrive/Typora",
 		});
-		const relativePrompt = "@LLM-Wiki/raw/notes/手工川线下分享会";
+		const simpleRelativePrompt = "@LLM-Wiki/raw/notes/手工川线下分享会";
 		const absolutePrompt = "@/Users/echooo/SynologyDrive/Typora/LLM-Wiki/raw/notes/手工川线下分享会";
+		const spacedRelativePrompt = "@LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论";
 
-		expect(getPromptSuggestions(relativePrompt, relativePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+		expect(getPromptSuggestions(simpleRelativePrompt, simpleRelativePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
 			"@LLM-Wiki/raw/notes/手工川线下分享会.md",
 		]);
 		expect(getPromptSuggestions(absolutePrompt, absolutePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
 			"@LLM-Wiki/raw/notes/手工川线下分享会.md",
+		]);
+		expect(getPromptSuggestions(spacedRelativePrompt, spacedRelativePrompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md",
 		]);
 	});
 

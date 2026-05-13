@@ -43,6 +43,11 @@ const TRIGGERS = new Set<string>(["/", "$", "@", "#"]);
 
 export function getPromptTokenContext(value: string, caret: number): PromptTokenContext | null {
 	const boundedCaret = Math.max(0, Math.min(caret, value.length));
+	const mentionContext = getMentionTokenContext(value, boundedCaret);
+	if (mentionContext) {
+		return mentionContext;
+	}
+
 	let start = boundedCaret;
 	while (start > 0 && !/\s/.test(value.charAt(start - 1))) {
 		start -= 1;
@@ -65,6 +70,24 @@ export function getPromptTokenContext(value: string, caret: number): PromptToken
 		end: boundedCaret,
 		query: token.slice(1).toLowerCase(),
 	};
+}
+
+function getMentionTokenContext(value: string, caret: number): PromptTokenContext | null {
+	const lineStart = value.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+	let start = value.lastIndexOf("@", Math.max(0, caret - 1));
+	while (start >= lineStart) {
+		const previous = start > 0 ? value.charAt(start - 1) : "";
+		if (!previous || /\s/.test(previous)) {
+			return {
+				end: caret,
+				query: value.slice(start + 1, caret).toLowerCase(),
+				start,
+				trigger: "@",
+			};
+		}
+		start = value.lastIndexOf("@", start - 1);
+	}
+	return null;
 }
 
 export function getPromptSuggestions(
