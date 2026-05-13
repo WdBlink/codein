@@ -18,6 +18,8 @@ import {
 } from "./promptSuggestions";
 import { PromptSuggestionRegistry } from "./promptSuggestionRegistry";
 import {
+	buildCodexPromptForSession,
+	clearActiveSidebarSessionConversation,
 	createNewSidebarSession,
 	deleteSidebarSession,
 	getActiveSidebarSession,
@@ -317,7 +319,7 @@ export class CodeianView extends ItemView {
 		this.clearButtonEl.addEventListener("click", () => {
 			this.clearMessages();
 			this.setStatus("Ready");
-			void this.persistSessionState();
+			void this.clearActiveSessionConversation();
 		});
 		this.updatePickerLabels();
 	}
@@ -327,6 +329,12 @@ export class CodeianView extends ItemView {
 		const activeSession = getActiveSidebarSession(this.plugin.settings);
 		this.currentAssistantOutput = activeSession.lastOutput;
 		this.currentReasoningItems = activeSession.reasoning;
+		if (activeSession.transcript.length > 0) {
+			for (const entry of activeSession.transcript) {
+				this.appendMessage(entry.role, entry.content, entry.reasoning);
+			}
+			return;
+		}
 		if (activeSession.lastPrompt) {
 			this.appendMessage("user", activeSession.lastPrompt);
 		}
@@ -486,17 +494,20 @@ export class CodeianView extends ItemView {
 			return;
 		}
 
+		const activeSessionBeforeRun = getActiveSidebarSession(this.plugin.settings);
+		const codexPrompt = buildCodexPromptForSession(activeSessionBeforeRun, prompt);
+
 		this.setRunning(true);
 		this.clearComposer();
 		this.currentAssistantOutput = "";
 		this.currentReasoningItems = [];
-		await this.persistSessionState(prompt);
+		await this.persistSessionState(prompt, true);
 		this.setStatus(`Running · ${this.getRunMetadata()}`);
 		this.beginRunMessage(prompt);
 
 		try {
 			const result = await this.runner.run({
-				prompt,
+				prompt: codexPrompt,
 				settings: this.plugin.settings,
 				vaultPath: this.plugin.getVaultPath(),
 				onStdout: (chunk) => this.appendStructuredCodexOutput(chunk),
@@ -536,7 +547,7 @@ export class CodeianView extends ItemView {
 			new Notice(`Codeian failed: ${message}`);
 		} finally {
 			this.setRunning(false);
-			await this.persistSessionState(prompt);
+			await this.persistSessionState(prompt, true);
 		}
 	}
 
@@ -1092,14 +1103,24 @@ export class CodeianView extends ItemView {
 		return this.app.workspace.getActiveFile()?.path ?? "";
 	}
 
-	private async persistSessionState(promptOverride?: string): Promise<void> {
+	private async persistSessionState(promptOverride?: string, recordTranscript = false): Promise<void> {
 		this.plugin.settings.lastPromptContainsNoteContext = this.promptContainsNoteContext;
 		updateActiveSidebarSession(this.plugin.settings, {
 			containsNoteContext: this.promptContainsNoteContext,
 			output: this.currentAssistantOutput,
 			prompt: promptOverride ?? this.promptEl?.value ?? this.lastPrompt,
+			recordTranscript,
 			reasoning: this.currentReasoningItems,
 		});
+		this.renderSessionList();
+		this.updateSessionEditor();
+		await this.plugin.saveSettings();
+	}
+
+	private async clearActiveSessionConversation(): Promise<void> {
+		this.promptContainsNoteContext = false;
+		this.lastPrompt = "";
+		clearActiveSidebarSessionConversation(this.plugin.settings);
 		this.renderSessionList();
 		this.updateSessionEditor();
 		await this.plugin.saveSettings();

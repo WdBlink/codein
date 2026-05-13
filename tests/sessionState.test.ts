@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CODEX_ARGS } from "../src/defaults";
 import type { CodeianSettings } from "../src/settings";
 import {
+	buildCodexPromptForSession,
 	buildPersistedSidebarState,
+	clearActiveSidebarSessionConversation,
 	createNewSidebarSession,
 	deleteSidebarSession,
 	getActiveSidebarSession,
@@ -66,6 +68,10 @@ describe("sidebar sessions", () => {
 			lastPrompt: "Summarize this project",
 			title: "Summarize this project",
 		});
+		expect(getActiveSidebarSession(settings).transcript.map((entry) => entry.content)).toEqual([
+			"Summarize this project",
+			"done",
+		]);
 	});
 
 	it("creates a new retained session without deleting the previous conversation", () => {
@@ -84,6 +90,103 @@ describe("sidebar sessions", () => {
 		expect(settings.activeSessionId).toBe(session.id);
 		expect(settings.sessions.some((candidate) => candidate.id === previousId && candidate.lastOutput === "old answer")).toBe(true);
 		expect(settings.sessions).toHaveLength(2);
+	});
+
+	it("builds a Codex prompt from only the active session transcript", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 5000);
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: false,
+			output: "The source folder is handcraft-chuan-offline-meeting/docx-extracted.",
+			prompt: "Digest the offline meeting transcripts",
+			reasoning: ["Identified the active transcript source."],
+		}, 5001);
+
+		createNewSidebarSession(settings, 5002);
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: false,
+			output: "A separate release task is complete.",
+			prompt: "Prepare release notes",
+			reasoning: [],
+		}, 5003);
+
+		const codexPrompt = buildCodexPromptForSession(getActiveSidebarSession(settings), "继续");
+
+		expect(codexPrompt).toContain("Prepare release notes");
+		expect(codexPrompt).toContain("Current user request:\n继续");
+		expect(codexPrompt).not.toContain("handcraft-chuan-offline-meeting");
+		expect(codexPrompt).not.toContain("Digest the offline meeting transcripts");
+	});
+
+	it("keeps the cancelled prompt as current-session context for a later continue request", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 6000);
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: false,
+			output: "",
+			prompt: "消化一下 /Typora/LLM-Wiki/generated/transcript-source-compiler/handcraft-chuan-offline-meeting/docx-extracted 中的内容",
+			reasoning: [],
+		}, 6001);
+
+		const codexPrompt = buildCodexPromptForSession(getActiveSidebarSession(settings), "继续");
+
+		expect(codexPrompt).toContain("handcraft-chuan-offline-meeting/docx-extracted");
+		expect(codexPrompt).toContain("Do not continue from other Codeian sessions");
+		expect(codexPrompt).toContain("Current user request:\n继续");
+	});
+
+	it("does not persist note-context prompts or echoed note content into the transcript", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 7000);
+
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: true,
+			output: "secret echo",
+			prompt: "Path: secret.md\nsecret note body",
+			reasoning: ["Read note"],
+		}, 7001);
+
+		const activeSession = getActiveSidebarSession(settings);
+		expect(activeSession.lastPrompt).toBe("");
+		expect(activeSession.lastOutput).toBe("");
+		expect(activeSession.transcript).toEqual([]);
+		expect(buildCodexPromptForSession(activeSession, "继续")).toBe("继续");
+	});
+
+	it("clears the active session transcript with the visible conversation", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 8000);
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: false,
+			output: "done",
+			prompt: "Old current topic",
+			reasoning: [],
+		}, 8001);
+
+		clearActiveSidebarSessionConversation(settings, 8002);
+
+		const activeSession = getActiveSidebarSession(settings);
+		expect(activeSession.lastPrompt).toBe("");
+		expect(activeSession.lastOutput).toBe("");
+		expect(activeSession.transcript).toEqual([]);
+	});
+
+	it("can save an unsent composer draft without adding it to the Codex transcript", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 9000);
+
+		updateActiveSidebarSession(settings, {
+			containsNoteContext: false,
+			output: "",
+			prompt: "Draft only",
+			reasoning: [],
+			recordTranscript: false,
+		}, 9001);
+
+		const activeSession = getActiveSidebarSession(settings);
+		expect(activeSession.lastPrompt).toBe("Draft only");
+		expect(activeSession.transcript).toEqual([]);
+		expect(buildCodexPromptForSession(activeSession, "继续")).toBe("继续");
 	});
 
 	it("keeps at most five sessions by dropping the oldest non-active entries", () => {

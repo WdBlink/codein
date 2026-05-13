@@ -33,8 +33,16 @@ export interface CodeianSession {
 	lastPrompt: string;
 	lastOutput: string;
 	reasoning: string[];
+	transcript: CodeianSessionTranscriptEntry[];
 	lastPromptContainsNoteContext: boolean;
 	updatedAt: number;
+}
+
+export interface CodeianSessionTranscriptEntry {
+	role: "assistant" | "user";
+	content: string;
+	reasoning: string[];
+	createdAt: number;
 }
 
 export const DEFAULT_SETTINGS: CodeianSettings = {

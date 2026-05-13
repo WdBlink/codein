@@ -1,8 +1,10 @@
-import type { CodeianSession, CodeianSettings } from "./settings";
+import type { CodeianSession, CodeianSessionTranscriptEntry, CodeianSettings } from "./settings";
 
 export const MAX_CODEIAN_SESSIONS = 5;
 const DEFAULT_SESSION_TITLE = "New chat";
 const MAX_REASONING_ITEMS = 24;
+const MAX_TRANSCRIPT_ENTRIES = 12;
+const MAX_TRANSCRIPT_CONTENT_LENGTH = 6000;
 
 export interface PersistedSidebarState {
 	lastPrompt: string;
@@ -15,6 +17,7 @@ export interface SessionStateUpdate {
 	output: string;
 	reasoning: readonly string[];
 	containsNoteContext: boolean;
+	recordTranscript?: boolean;
 }
 
 export function buildPersistedSidebarState(
@@ -134,15 +137,19 @@ export function updateActiveSidebarSession(settings: CodeianSettings, update: Se
 	const index = settings.sessions.findIndex((session) => session.id === settings.activeSessionId);
 	const current = settings.sessions[index] ?? getActiveSidebarSession(settings);
 	const persisted = buildPersistedSidebarState(update.prompt, update.output, update.containsNoteContext);
+	const reasoning = persisted.lastPromptContainsNoteContext ? [] : normalizeReasoningHistory(update.reasoning);
 	const next: CodeianSession = {
 		...current,
 		lastOutput: persisted.lastOutput,
 		lastPrompt: persisted.lastPrompt,
 		lastPromptContainsNoteContext: persisted.lastPromptContainsNoteContext,
-		reasoning: persisted.lastPromptContainsNoteContext ? [] : normalizeReasoningHistory(update.reasoning),
+		reasoning,
 		title: current.title === DEFAULT_SESSION_TITLE && persisted.lastPrompt
 			? inferSessionTitle(persisted.lastPrompt)
 			: current.title,
+		transcript: update.recordTranscript === false
+			? normalizeTranscript(current.transcript, now)
+			: updateTranscript(current.transcript, persisted, reasoning, now),
 		updatedAt: now,
 	};
 	if (index >= 0) {
@@ -159,6 +166,49 @@ export function updateActiveSidebarSession(settings: CodeianSettings, update: Se
 		.slice(0, MAX_CODEIAN_SESSIONS);
 	syncLegacyStateFromActiveSession(settings);
 	return next;
+}
+
+export function clearActiveSidebarSessionConversation(settings: CodeianSettings, now = Date.now()): CodeianSession {
+	normalizeSidebarSessions(settings, now);
+	const index = settings.sessions.findIndex((session) => session.id === settings.activeSessionId);
+	const current = settings.sessions[index] ?? getActiveSidebarSession(settings);
+	const next: CodeianSession = {
+		...current,
+		lastOutput: "",
+		lastPrompt: "",
+		lastPromptContainsNoteContext: false,
+		reasoning: [],
+		transcript: [],
+		updatedAt: now,
+	};
+	if (index >= 0) {
+		settings.sessions[index] = next;
+	}
+	syncLegacyStateFromActiveSession(settings);
+	return next;
+}
+
+export function buildCodexPromptForSession(session: CodeianSession, currentPrompt: string): string {
+	const prompt = currentPrompt.trim();
+	const transcript = normalizeTranscript(session.transcript, session.updatedAt);
+	if (transcript.length === 0) {
+		return prompt;
+	}
+
+	const history = transcript
+		.map((entry) => formatTranscriptEntry(entry))
+		.join("\n\n");
+	return [
+		"You are continuing a Codeian sidebar session in Obsidian.",
+		"Use only the session history below as prior conversation context. Do not continue from other Codeian sessions, unrelated folders, or local memories unless the current request explicitly asks for them.",
+		"",
+		"<session-history>",
+		history,
+		"</session-history>",
+		"",
+		"Current user request:",
+		prompt,
+	].join("\n");
 }
 
 export function updateSidebarSessionMetadata(
@@ -198,14 +248,23 @@ export function syncLegacyStateFromActiveSession(settings: CodeianSettings): voi
 
 export function createCodeianSession(input: Partial<CodeianSession> = {}): CodeianSession {
 	const now = input.updatedAt ?? Date.now();
+	const reasoning = normalizeReasoningHistory(input.reasoning ?? []);
+	const lastPromptContainsNoteContext = input.lastPromptContainsNoteContext ?? false;
+	const lastPrompt = input.lastPrompt ?? "";
+	const lastOutput = input.lastOutput ?? "";
+	const transcript = normalizeTranscript(input.transcript, now);
+	const hasPersistedTranscript = Array.isArray(input.transcript);
 	return {
 		id: input.id || createSessionId(now),
-		lastOutput: input.lastOutput ?? "",
-		lastPrompt: input.lastPrompt ?? "",
-		lastPromptContainsNoteContext: input.lastPromptContainsNoteContext ?? false,
+		lastOutput,
+		lastPrompt,
+		lastPromptContainsNoteContext,
 		note: normalizeWhitespace(input.note ?? "", 260),
-		reasoning: normalizeReasoningHistory(input.reasoning ?? []),
+		reasoning,
 		title: normalizeTitle(input.title ?? DEFAULT_SESSION_TITLE),
+		transcript: hasPersistedTranscript
+			? transcript
+			: createTranscriptFromLegacyState(lastPrompt, lastOutput, reasoning, lastPromptContainsNoteContext, now),
 		updatedAt: now,
 	};
 }
@@ -222,8 +281,100 @@ function normalizeSession(value: unknown, updatedAt: number): CodeianSession | n
 		note: getString(value.note) ?? "",
 		reasoning: Array.isArray(value.reasoning) ? value.reasoning.filter((item): item is string => typeof item === "string") : [],
 		title: getString(value.title) ?? DEFAULT_SESSION_TITLE,
+		transcript: Array.isArray(value.transcript) ? value.transcript as CodeianSessionTranscriptEntry[] : [],
 		updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : updatedAt,
 	});
+}
+
+function updateTranscript(
+	existing: readonly CodeianSessionTranscriptEntry[],
+	persisted: PersistedSidebarState,
+	reasoning: readonly string[],
+	now: number,
+): CodeianSessionTranscriptEntry[] {
+	const transcript = normalizeTranscript(existing, now);
+	if (persisted.lastPromptContainsNoteContext) {
+		return transcript;
+	}
+
+	const prompt = trimTranscriptContent(persisted.lastPrompt);
+	const output = trimTranscriptContent(persisted.lastOutput);
+	if (prompt) {
+		const last = transcript[transcript.length - 1];
+		if (last?.role === "user" && last.content === prompt) {
+			transcript[transcript.length - 1] = { ...last, createdAt: last.createdAt || now };
+		} else {
+			transcript.push({ content: prompt, createdAt: now, reasoning: [], role: "user" });
+		}
+	}
+
+	if (output) {
+		const normalizedReasoning = normalizeReasoningHistory(reasoning);
+		const last = transcript[transcript.length - 1];
+		if (last?.role === "assistant") {
+			transcript[transcript.length - 1] = {
+				...last,
+				content: output,
+				createdAt: now,
+				reasoning: normalizedReasoning,
+			};
+		} else {
+			transcript.push({
+				content: output,
+				createdAt: now,
+				reasoning: normalizedReasoning,
+				role: "assistant",
+			});
+		}
+	}
+
+	return transcript.slice(-MAX_TRANSCRIPT_ENTRIES);
+}
+
+function createTranscriptFromLegacyState(
+	lastPrompt: string,
+	lastOutput: string,
+	reasoning: readonly string[],
+	containsNoteContext: boolean,
+	now: number,
+): CodeianSessionTranscriptEntry[] {
+	if (containsNoteContext) {
+		return [];
+	}
+	return updateTranscript([], buildPersistedSidebarState(lastPrompt, lastOutput, false), reasoning, now);
+}
+
+function normalizeTranscript(value: unknown, updatedAt: number): CodeianSessionTranscriptEntry[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	const normalized: CodeianSessionTranscriptEntry[] = [];
+	for (const entry of value) {
+		if (!isRecord(entry)) {
+			continue;
+		}
+		const role = entry.role === "assistant" || entry.role === "user" ? entry.role : null;
+		const content = trimTranscriptContent(getString(entry.content) ?? "");
+		if (!role || !content) {
+			continue;
+		}
+		normalized.push({
+			content,
+			createdAt: typeof entry.createdAt === "number" ? entry.createdAt : updatedAt,
+			reasoning: Array.isArray(entry.reasoning) ? normalizeReasoningHistory(entry.reasoning.filter((item): item is string => typeof item === "string")) : [],
+			role,
+		});
+	}
+	return normalized.slice(-MAX_TRANSCRIPT_ENTRIES);
+}
+
+function formatTranscriptEntry(entry: CodeianSessionTranscriptEntry): string {
+	const label = entry.role === "user" ? "User" : "Assistant";
+	const chunks = [`${label}:\n${entry.content}`];
+	if (entry.role === "assistant" && entry.reasoning.length > 0) {
+		chunks.push(`Reasoning summary:\n${entry.reasoning.join("\n")}`);
+	}
+	return chunks.join("\n");
 }
 
 function normalizeReasoningHistory(items: readonly string[]): string[] {
@@ -255,6 +406,14 @@ function normalizeWhitespace(value: string, maxLength: number): string {
 		return normalized;
 	}
 	return normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd();
+}
+
+function trimTranscriptContent(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.length <= MAX_TRANSCRIPT_CONTENT_LENGTH) {
+		return trimmed;
+	}
+	return trimmed.slice(0, MAX_TRANSCRIPT_CONTENT_LENGTH).trimEnd();
 }
 
 function createSessionId(now: number): string {
