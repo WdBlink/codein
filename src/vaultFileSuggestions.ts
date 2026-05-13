@@ -18,14 +18,12 @@ export interface VaultFileSuggestionOptions {
 }
 
 const IGNORED_PATH_SEGMENTS = new Set([".git", "node_modules"]);
-const MAX_VAULT_FILE_SUGGESTIONS = 500;
 
 export function buildVaultFileSuggestions(
 	files: readonly VaultFileLike[],
 	options: VaultFileSuggestionOptions = {},
 ): PromptSuggestion[] {
 	const configDir = normalizeVaultPath(options.configDir ?? "");
-	const limit = options.limit ?? MAX_VAULT_FILE_SUGGESTIONS;
 	const fileSuggestions: PromptSuggestion[] = files
 		.map((file) => ({
 			...file,
@@ -57,7 +55,10 @@ export function buildVaultFileSuggestions(
 				value: `@${folderPath}`,
 			};
 		});
-	return [...fileSuggestions.slice(0, limit), ...folderSuggestions.slice(0, limit)];
+	if (typeof options.limit === "number") {
+		return [...fileSuggestions.slice(0, options.limit), ...folderSuggestions.slice(0, options.limit)];
+	}
+	return [...fileSuggestions, ...folderSuggestions];
 }
 
 function isMentionableFile(file: VaultFileLike, configDir: string): boolean {

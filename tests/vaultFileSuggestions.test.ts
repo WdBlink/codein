@@ -104,6 +104,27 @@ describe("vault file suggestions", () => {
 		]);
 	});
 
+	it("does not drop matching files that sort beyond the first 500 vault files", () => {
+		const manyEarlierFiles = Array.from({ length: 700 }, (_, index) => ({
+			basename: `A-${index.toString().padStart(3, "0")}`,
+			extension: "md",
+			path: `A-${index.toString().padStart(3, "0")}.md`,
+		}));
+		const suggestions = buildVaultFileSuggestions([
+			...manyEarlierFiles,
+			{
+				basename: "和 GPT 关于向量世界（AI 世界）什么最重要的讨论",
+				extension: "md",
+				path: "LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md",
+			},
+		]);
+		const prompt = "@LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论";
+
+		expect(getPromptSuggestions(prompt, prompt.length, 6, suggestions).map((suggestion) => suggestion.value)).toEqual([
+			"@LLM-Wiki/raw/notes/和 GPT 关于向量世界（AI 世界）什么最重要的讨论.md",
+		]);
+	});
+
 	it("excludes hidden, Obsidian config, git, and dependency paths", () => {
 		expect(buildVaultFileSuggestions([
 			{ path: ".config/plugins/codeian/data.md", extension: "md" },

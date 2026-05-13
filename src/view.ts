@@ -1111,6 +1111,7 @@ export class CodeianView extends ItemView {
 			configDir?: string;
 			getAllFolders?: (includeRoot?: boolean) => VaultFolderLike[];
 			getAllLoadedFiles?: () => Array<VaultFolderLike & { children?: unknown }>;
+			getFiles?: () => Array<{ basename?: string; extension?: string; path: string }>;
 		};
 		this.suggestionRegistry.setVaultFileSuggestions(
 			buildVaultFileSuggestions(getVaultFiles(vaultWithConfigDir, this.app.vault.getMarkdownFiles()), {
@@ -1246,9 +1247,15 @@ function getVaultFolders(vault: {
 }
 
 function getVaultFiles<T extends { path: string }>(
-	vault: { getAllLoadedFiles?: () => Array<T & { children?: unknown }> },
+	vault: {
+		getAllLoadedFiles?: () => Array<T & { children?: unknown }>;
+		getFiles?: () => T[];
+	},
 	markdownFiles: readonly T[],
 ): T[] {
+	if (typeof vault.getFiles === "function") {
+		return vault.getFiles();
+	}
 	if (typeof vault.getAllLoadedFiles !== "function") {
 		return [...markdownFiles];
 	}
