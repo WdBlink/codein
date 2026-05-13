@@ -164,6 +164,34 @@ export class CodeianSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
+		new Setting(containerEl)
+			.setName("Updates")
+			.setHeading();
+
+		const updateResultEl = containerEl.createDiv({ cls: "codeian-settings-test-result" });
+		new Setting(containerEl)
+			.setName("Update from GitHub release")
+			.setDesc("Download the latest release files from the project repository and install them into this vault.")
+			.addButton((button) => button
+				.setButtonText("Update")
+				.onClick(async () => {
+					button.setDisabled(true);
+					updateResultEl.removeClass("codeian-settings-test-error");
+					updateResultEl.setText("Checking GitHub releases...");
+					try {
+						const result = await this.plugin.installLatestRelease();
+						updateResultEl.setText(formatReleaseUpdateResult(result));
+						new Notice("Codeian update installed. Reload this plugin to use the new files.");
+					} catch (error) {
+						const message = error instanceof Error ? error.message : String(error);
+						updateResultEl.addClass("codeian-settings-test-error");
+						updateResultEl.setText(message);
+						new Notice(`Codeian update failed: ${message}`);
+					} finally {
+						button.setDisabled(false);
+					}
+				}));
+
 		const testResultEl = containerEl.createDiv({ cls: "codeian-settings-test-result" });
 		new Setting(containerEl)
 			.setName("Test command")
@@ -188,4 +216,11 @@ export class CodeianSettingTab extends PluginSettingTab {
 					}
 				}));
 	}
+}
+
+function formatReleaseUpdateResult(result: Awaited<ReturnType<CodeianPlugin["installLatestRelease"]>>): string {
+	const versionText = result.version && result.version !== result.currentVersion
+		? `Installed ${result.version} over ${result.currentVersion}.`
+		: `Installed latest release ${result.tagName}.`;
+	return `${versionText} Files: ${result.installedFiles.join(", ")}. Reload this plugin to finish.`;
 }

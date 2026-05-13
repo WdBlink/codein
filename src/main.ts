@@ -1,6 +1,7 @@
-import { Notice, Plugin, WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
 
 import { LEGACY_CODEX_ARGS, LEGACY_CODEX_READ_ONLY_ARGS } from "./defaults";
+import { installLatestCodeianRelease, type GitHubReleaseUpdateResult } from "./githubUpdater";
 import { buildCurrentNoteContextPrompt } from "./promptContext";
 import { CodeianSettingTab, DEFAULT_SETTINGS, CodeianSettings } from "./settings";
 import { normalizeSidebarSessions } from "./sessionState";
@@ -76,6 +77,14 @@ export default class CodeianPlugin extends Plugin {
 		return null;
 	}
 
+	async installLatestRelease(): Promise<GitHubReleaseUpdateResult> {
+		return installLatestCodeianRelease(
+			this.app.vault.adapter,
+			this.getPluginInstallDir(),
+			this.manifest.version,
+		);
+	}
+
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<CodeianSettings>);
 		normalizeSidebarSessions(this.settings);
@@ -91,5 +100,18 @@ export default class CodeianPlugin extends Plugin {
 
 	private getSidebarLeaf(): WorkspaceLeaf {
 		return this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(true);
+	}
+
+	private getPluginInstallDir(): string {
+		const manifestWithDir = this.manifest as typeof this.manifest & { dir?: string };
+		if (manifestWithDir.dir) {
+			return normalizePath(manifestWithDir.dir);
+		}
+
+		const vaultWithConfigDir = this.app.vault as typeof this.app.vault & { configDir?: string };
+		if (!vaultWithConfigDir.configDir) {
+			throw new Error("Could not resolve the current vault configuration folder.");
+		}
+		return normalizePath(`${vaultWithConfigDir.configDir}/plugins/${this.manifest.id}`);
 	}
 }

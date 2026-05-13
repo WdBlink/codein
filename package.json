@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-plugin-codeian",
-	"version": "0.2.3",
+	"version": "0.2.4",
 	"description": "Use Codex from a sidebar in your vault.",
 	"main": "main.js",
 	"type": "module",
