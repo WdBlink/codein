@@ -42,6 +42,7 @@ export function normalizeVaultLinkTarget(rawTarget: string, options: VaultLinkTa
 		return "";
 	}
 
+	const isObsidianAppTarget = isObsidianAppUrl(target);
 	target = stripObsidianAppPrefix(target);
 	target = safeDecodeUri(target).trim();
 	target = stripQuery(target);
@@ -49,7 +50,9 @@ export function normalizeVaultLinkTarget(rawTarget: string, options: VaultLinkTa
 	target = stripLeadingMention(target);
 	target = normalizeSlashes(target);
 	target = stripVaultPath(target, options.vaultPath);
-	if (target.startsWith("/") || target.startsWith("~")) {
+	if (isObsidianAppTarget) {
+		target = target.replace(/^\/+/, "");
+	} else if (target.startsWith("/") || target.startsWith("~")) {
 		return "";
 	}
 	target = target.replace(/^\.\//, "").replace(/^\/+/, "");
@@ -57,11 +60,12 @@ export function normalizeVaultLinkTarget(rawTarget: string, options: VaultLinkTa
 }
 
 export function getVaultLinkLookupPath(linktext: string): string {
-	return linktext
+	const withoutFragment = linktext
 		.split("#")[0]
 		?.split("^")[0]
 		?.replace(/\/+$/, "")
 		.trim() ?? "";
+	return stripLineSuffix(withoutFragment);
 }
 
 export function resolveVaultFileLink(
@@ -105,10 +109,14 @@ function isIgnoredScheme(target: string): boolean {
 		return false;
 	}
 	const scheme = schemeMatch[0].toLowerCase();
-	if (scheme === "app:" && target.toLowerCase().startsWith("app://obsidian.md/")) {
+	if (scheme === "app:" && isObsidianAppUrl(target)) {
 		return false;
 	}
 	return EXTERNAL_SCHEMES.has(scheme) || scheme !== "app:";
+}
+
+function isObsidianAppUrl(target: string): boolean {
+	return target.toLowerCase().startsWith("app://obsidian.md/");
 }
 
 function stripObsidianAppPrefix(target: string): string {
@@ -184,17 +192,30 @@ function stripMarkdownExtension(filePath: string): string {
 	return filePath.replace(/\.md$/i, "");
 }
 
+function stripLineSuffix(filePath: string): string {
+	return filePath.replace(/(\.[A-Za-z0-9]{1,12}):\d+:\d+$/u, "$1").replace(/(\.[A-Za-z0-9]{1,12}):\d+$/u, "$1");
+}
+
 function stripVaultPath(target: string, vaultPath = ""): string {
 	if (!vaultPath) {
 		return target;
 	}
 	const normalizedTarget = normalizeSlashes(target);
 	const normalizedVaultPath = normalizeSlashes(vaultPath).replace(/\/+$/, "");
+	const targetVariants = [
+		normalizedTarget,
+		normalizedTarget.startsWith("/") ? normalizedTarget : `/${normalizedTarget}`,
+	];
 	if (normalizedTarget === normalizedVaultPath) {
 		return "";
 	}
-	if (normalizedTarget.startsWith(`${normalizedVaultPath}/`)) {
-		return normalizedTarget.slice(normalizedVaultPath.length + 1);
+	for (const targetVariant of targetVariants) {
+		if (targetVariant === normalizedVaultPath) {
+			return "";
+		}
+		if (targetVariant.startsWith(`${normalizedVaultPath}/`)) {
+			return targetVariant.slice(normalizedVaultPath.length + 1);
+		}
 	}
 	return target;
 }

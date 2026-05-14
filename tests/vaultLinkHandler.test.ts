@@ -37,6 +37,14 @@ describe("vault link handler", () => {
 		expect(normalizeVaultLinkTarget("@LLM-Wiki/generated/")).toBe("LLM-Wiki/generated/");
 	});
 
+	it("normalizes Obsidian app links with absolute encoded vault paths and line suffixes", () => {
+		const link = "app://obsidian.md/Users/echooo/SynologyDrive/Typora/LLM-Wiki/wiki/concepts/%E4%B8%8A%E4%B8%8B%E6%96%87%E5%B7%A5%E7%A8%8B.md:29";
+
+		expect(normalizeVaultLinkTarget(link, {
+			vaultPath: "/Users/echooo/SynologyDrive/Typora",
+		})).toBe("LLM-Wiki/wiki/concepts/上下文工程.md:29");
+	});
+
 	it("ignores external and same-page links", () => {
 		expect(getVaultLinkTarget(createAnchor({ href: "https://example.com", text: "external" }))).toBeNull();
 		expect(getVaultLinkTarget(createAnchor({ href: "mailto:team@example.com", text: "mail" }))).toBeNull();
@@ -47,6 +55,8 @@ describe("vault link handler", () => {
 	it("builds lookup paths without headings or block fragments", () => {
 		expect(getVaultLinkLookupPath("Folder/Note.md#Heading")).toBe("Folder/Note.md");
 		expect(getVaultLinkLookupPath("Folder/Note.md#^block-id")).toBe("Folder/Note.md");
+		expect(getVaultLinkLookupPath("Folder/Note.md:29")).toBe("Folder/Note.md");
+		expect(getVaultLinkLookupPath("Folder/Note.md:29:4")).toBe("Folder/Note.md");
 		expect(getVaultLinkLookupPath("Folder/")).toBe("Folder");
 	});
 
@@ -54,6 +64,22 @@ describe("vault link handler", () => {
 		const vault = createVault(["LLM-Wiki/raw/notes/手工川线下分享会.md"]);
 
 		expect(resolveVaultFileLink(vault, "LLM-Wiki/raw/notes/手工川线下分享会")).toBe("LLM-Wiki/raw/notes/手工川线下分享会.md");
+	});
+
+	it("resolves rendered app links copied from assistant markdown output", () => {
+		const vault = createVault(["LLM-Wiki/wiki/concepts/上下文工程.md"]);
+		const target = getVaultLinkTarget(createAnchor({
+			href: "app://obsidian.md/Users/echooo/SynologyDrive/Typora/LLM-Wiki/wiki/concepts/%E4%B8%8A%E4%B8%8B%E6%96%87%E5%B7%A5%E7%A8%8B.md:29",
+			text: "上下文工程.md",
+		}), {
+			vaultPath: "/Users/echooo/SynologyDrive/Typora",
+		});
+
+		expect(target).toEqual({
+			displayText: "上下文工程.md",
+			linktext: "LLM-Wiki/wiki/concepts/上下文工程.md:29",
+		});
+		expect(target && resolveVaultFileLink(vault, target.linktext)).toBe("LLM-Wiki/wiki/concepts/上下文工程.md");
 	});
 
 	it("resolves loose assistant links that omit spaces and parenthetical qualifiers", () => {
