@@ -1,4 +1,13 @@
-# Codeian
+<div align="center">
+
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/logo-light.svg">
+    <img alt="Codeian" src=".github/logo-light.svg" width="480">
+  </picture>
+
+  <p>Codex in your Obsidian sidebar, with your vault as the working context.</p>
+</div>
 
 Use Codex from a sidebar in your vault.
 

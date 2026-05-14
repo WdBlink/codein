@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 604 225" role="img" aria-label="Codeian">
+  <defs>
+    <linearGradient id="mark" x1="44" y1="38" x2="156" y2="158" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#65a30d"/>
+      <stop offset="0.58" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#1f4f46"/>
+    </linearGradient>
+    <linearGradient id="word" x1="184" y1="68" x2="562" y2="68" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="0.72" stop-color="#164e45"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+    <filter id="pixel-shadow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="8" stdDeviation="0" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+  <g shape-rendering="crispEdges">
+    <g filter="url(#pixel-shadow)">
+      <rect x="52" y="28" width="16" height="16" fill="#111827"/>
+      <rect x="68" y="28" width="16" height="16" fill="#111827"/>
+      <rect x="84" y="28" width="16" height="16" fill="#111827"/>
+      <rect x="100" y="28" width="16" height="16" fill="#111827"/>
+      <rect x="116" y="28" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="44" width="16" height="16" fill="#111827"/>
+      <rect x="52" y="44" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="44" width="16" height="16" fill="url(#mark)"/>
+      <rect x="84" y="44" width="16" height="16" fill="url(#mark)"/>
+      <rect x="100" y="44" width="16" height="16" fill="url(#mark)"/>
+      <rect x="116" y="44" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="44" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="60" width="16" height="16" fill="#111827"/>
+      <rect x="52" y="60" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="60" width="16" height="16" fill="#e5f7ef"/>
+      <rect x="84" y="60" width="16" height="16" fill="url(#mark)"/>
+      <rect x="100" y="60" width="16" height="16" fill="url(#mark)"/>
+      <rect x="116" y="60" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="60" width="16" height="16" fill="#111827"/>
+      <rect x="20" y="76" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="52" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="84" y="76" width="16" height="16" fill="#f8fafc"/>
+      <rect x="100" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="116" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="76" width="16" height="16" fill="url(#mark)"/>
+      <rect x="148" y="76" width="16" height="16" fill="#111827"/>
+      <rect x="20" y="92" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="92" width="16" height="16" fill="url(#mark)"/>
+      <rect x="52" y="92" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="92" width="16" height="16" fill="#0f172a"/>
+      <rect x="84" y="92" width="16" height="16" fill="#0f172a"/>
+      <rect x="100" y="92" width="16" height="16" fill="#0f172a"/>
+      <rect x="116" y="92" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="92" width="16" height="16" fill="url(#mark)"/>
+      <rect x="148" y="92" width="16" height="16" fill="#111827"/>
+      <rect x="20" y="108" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="108" width="16" height="16" fill="url(#mark)"/>
+      <rect x="52" y="108" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="108" width="16" height="16" fill="#0f172a"/>
+      <rect x="84" y="108" width="16" height="16" fill="#0f172a"/>
+      <rect x="100" y="108" width="16" height="16" fill="#0f172a"/>
+      <rect x="116" y="108" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="108" width="16" height="16" fill="url(#mark)"/>
+      <rect x="148" y="108" width="16" height="16" fill="#111827"/>
+      <rect x="36" y="124" width="16" height="16" fill="#111827"/>
+      <rect x="52" y="124" width="16" height="16" fill="url(#mark)"/>
+      <rect x="68" y="124" width="16" height="16" fill="url(#mark)"/>
+      <rect x="84" y="124" width="16" height="16" fill="url(#mark)"/>
+      <rect x="100" y="124" width="16" height="16" fill="url(#mark)"/>
+      <rect x="116" y="124" width="16" height="16" fill="url(#mark)"/>
+      <rect x="132" y="124" width="16" height="16" fill="#111827"/>
+      <rect x="52" y="140" width="16" height="16" fill="#111827"/>
+      <rect x="68" y="140" width="16" height="16" fill="#111827"/>
+      <rect x="84" y="140" width="16" height="16" fill="#111827"/>
+      <rect x="100" y="140" width="16" height="16" fill="#111827"/>
+      <rect x="116" y="140" width="16" height="16" fill="#111827"/>
+      <rect x="84" y="76" width="16" height="48" fill="#e5f7ef"/>
+      <rect x="68" y="92" width="48" height="16" fill="#0f172a"/>
+    </g>
+    <text x="184" y="113" fill="url(#word)" font-family="Monaco, 'Courier New', monospace" font-size="58" font-weight="900" letter-spacing="2">CODEIAN</text>
+    <rect x="188" y="132" width="288" height="8" fill="#1f2937"/>
+    <rect x="492" y="132" width="48" height="8" fill="#0f766e"/>
+    <rect x="548" y="132" width="16" height="8" fill="#65a30d"/>
+    <text x="188" y="166" fill="#475569" font-family="Monaco, 'Courier New', monospace" font-size="18" font-weight="700" letter-spacing="4">OBSIDIAN CODEX SIDEBAR</text>
+  </g>
+</svg>
