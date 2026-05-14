@@ -1,87 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 604 225" role="img" aria-label="Codeian">
   <defs>
-    <linearGradient id="mark" x1="44" y1="38" x2="156" y2="158" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#bef264"/>
-      <stop offset="0.58" stop-color="#2dd4bf"/>
-      <stop offset="1" stop-color="#0f766e"/>
-    </linearGradient>
-    <linearGradient id="word" x1="184" y1="68" x2="562" y2="68" gradientUnits="userSpaceOnUse">
+    <linearGradient id="pixels" x1="58" y1="44" x2="590" y2="126" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#f8fafc"/>
-      <stop offset="0.72" stop-color="#ccfbf1"/>
+      <stop offset="0.62" stop-color="#ccfbf1"/>
       <stop offset="1" stop-color="#5eead4"/>
     </linearGradient>
-    <filter id="pixel-shadow" x="-8%" y="-8%" width="116%" height="116%">
-      <feDropShadow dx="0" dy="8" stdDeviation="0" flood-color="#000000" flood-opacity="0.36"/>
+    <filter id="block-shadow" x="-2%" y="-8%" width="104%" height="124%">
+      <feDropShadow dx="0" dy="8" stdDeviation="0" flood-color="#000000" flood-opacity="0.38"/>
     </filter>
   </defs>
   <g shape-rendering="crispEdges">
-    <g filter="url(#pixel-shadow)">
-      <rect x="52" y="28" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="68" y="28" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="84" y="28" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="100" y="28" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="116" y="28" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="44" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="52" y="44" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="44" width="16" height="16" fill="url(#mark)"/>
-      <rect x="84" y="44" width="16" height="16" fill="url(#mark)"/>
-      <rect x="100" y="44" width="16" height="16" fill="url(#mark)"/>
-      <rect x="116" y="44" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="44" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="60" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="52" y="60" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="60" width="16" height="16" fill="#ecfeff"/>
-      <rect x="84" y="60" width="16" height="16" fill="url(#mark)"/>
-      <rect x="100" y="60" width="16" height="16" fill="url(#mark)"/>
-      <rect x="116" y="60" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="60" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="20" y="76" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="52" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="84" y="76" width="16" height="16" fill="#f8fafc"/>
-      <rect x="100" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="116" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="76" width="16" height="16" fill="url(#mark)"/>
-      <rect x="148" y="76" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="20" y="92" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="92" width="16" height="16" fill="url(#mark)"/>
-      <rect x="52" y="92" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="92" width="16" height="16" fill="#0f172a"/>
-      <rect x="84" y="92" width="16" height="16" fill="#0f172a"/>
-      <rect x="100" y="92" width="16" height="16" fill="#0f172a"/>
-      <rect x="116" y="92" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="92" width="16" height="16" fill="url(#mark)"/>
-      <rect x="148" y="92" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="20" y="108" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="108" width="16" height="16" fill="url(#mark)"/>
-      <rect x="52" y="108" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="108" width="16" height="16" fill="#0f172a"/>
-      <rect x="84" y="108" width="16" height="16" fill="#0f172a"/>
-      <rect x="100" y="108" width="16" height="16" fill="#0f172a"/>
-      <rect x="116" y="108" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="108" width="16" height="16" fill="url(#mark)"/>
-      <rect x="148" y="108" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="36" y="124" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="52" y="124" width="16" height="16" fill="url(#mark)"/>
-      <rect x="68" y="124" width="16" height="16" fill="url(#mark)"/>
-      <rect x="84" y="124" width="16" height="16" fill="url(#mark)"/>
-      <rect x="100" y="124" width="16" height="16" fill="url(#mark)"/>
-      <rect x="116" y="124" width="16" height="16" fill="url(#mark)"/>
-      <rect x="132" y="124" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="52" y="140" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="68" y="140" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="84" y="140" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="100" y="140" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="116" y="140" width="16" height="16" fill="#e2e8f0"/>
-      <rect x="84" y="76" width="16" height="48" fill="#ecfeff"/>
-      <rect x="68" y="92" width="48" height="16" fill="#0f172a"/>
-    </g>
-    <text x="184" y="113" fill="url(#word)" font-family="Monaco, 'Courier New', monospace" font-size="58" font-weight="900" letter-spacing="2">CODEIAN</text>
-    <rect x="188" y="132" width="288" height="8" fill="#f8fafc"/>
-    <rect x="492" y="132" width="48" height="8" fill="#5eead4"/>
-    <rect x="548" y="132" width="16" height="8" fill="#bef264"/>
-    <text x="188" y="166" fill="#94a3b8" font-family="Monaco, 'Courier New', monospace" font-size="18" font-weight="700" letter-spacing="4">OBSIDIAN CODEX SIDEBAR</text>
+    <path d="M61 44h10v10h-10zM73 44h10v10h-10zM85 44h10v10h-10zM97 44h10v10h-10zM109 44h10v10h-10zM61 56h10v10h-10zM61 68h10v10h-10zM61 80h10v10h-10zM61 92h10v10h-10zM61 104h10v10h-10zM61 116h10v10h-10zM73 116h10v10h-10zM85 116h10v10h-10zM97 116h10v10h-10zM109 116h10v10h-10zM139 44h10v10h-10zM151 44h10v10h-10zM163 44h10v10h-10zM175 44h10v10h-10zM187 44h10v10h-10zM139 56h10v10h-10zM187 56h10v10h-10zM139 68h10v10h-10zM187 68h10v10h-10zM139 80h10v10h-10zM187 80h10v10h-10zM139 92h10v10h-10zM187 92h10v10h-10zM139 104h10v10h-10zM187 104h10v10h-10zM139 116h10v10h-10zM151 116h10v10h-10zM163 116h10v10h-10zM175 116h10v10h-10zM187 116h10v10h-10zM217 44h10v10h-10zM229 44h10v10h-10zM241 44h10v10h-10zM253 44h10v10h-10zM217 56h10v10h-10zM265 56h10v10h-10zM217 68h10v10h-10zM265 68h10v10h-10zM217 80h10v10h-10zM265 80h10v10h-10zM217 92h10v10h-10zM265 92h10v10h-10zM217 104h10v10h-10zM265 104h10v10h-10zM217 116h10v10h-10zM229 116h10v10h-10zM241 116h10v10h-10zM253 116h10v10h-10zM295 44h10v10h-10zM307 44h10v10h-10zM319 44h10v10h-10zM331 44h10v10h-10zM343 44h10v10h-10zM295 56h10v10h-10zM295 68h10v10h-10zM307 68h10v10h-10zM319 68h10v10h-10zM331 68h10v10h-10zM295 80h10v10h-10zM295 92h10v10h-10zM295 104h10v10h-10zM295 116h10v10h-10zM307 116h10v10h-10zM319 116h10v10h-10zM331 116h10v10h-10zM343 116h10v10h-10zM373 44h10v10h-10zM385 44h10v10h-10zM397 44h10v10h-10zM409 44h10v10h-10zM421 44h10v10h-10zM397 56h10v10h-10zM397 68h10v10h-10zM397 80h10v10h-10zM397 92h10v10h-10zM397 104h10v10h-10zM373 116h10v10h-10zM385 116h10v10h-10zM397 116h10v10h-10zM409 116h10v10h-10zM421 116h10v10h-10zM463 44h10v10h-10zM475 44h10v10h-10zM487 44h10v10h-10zM451 56h10v10h-10zM499 56h10v10h-10zM451 68h10v10h-10zM499 68h10v10h-10zM451 80h10v10h-10zM463 80h10v10h-10zM475 80h10v10h-10zM487 80h10v10h-10zM499 80h10v10h-10zM451 92h10v10h-10zM499 92h10v10h-10zM451 104h10v10h-10zM499 104h10v10h-10zM451 116h10v10h-10zM499 116h10v10h-10zM529 44h10v10h-10zM577 44h10v10h-10zM529 56h10v10h-10zM541 56h10v10h-10zM577 56h10v10h-10zM529 68h10v10h-10zM553 68h10v10h-10zM577 68h10v10h-10zM529 80h10v10h-10zM565 80h10v10h-10zM577 80h10v10h-10zM529 92h10v10h-10zM577 92h10v10h-10zM529 104h10v10h-10zM577 104h10v10h-10zM529 116h10v10h-10zM577 116h10v10h-10z" fill="#334155" opacity="0.8" transform="translate(0 8)"/>
+    <path d="M61 44h10v10h-10zM73 44h10v10h-10zM85 44h10v10h-10zM97 44h10v10h-10zM109 44h10v10h-10zM61 56h10v10h-10zM61 68h10v10h-10zM61 80h10v10h-10zM61 92h10v10h-10zM61 104h10v10h-10zM61 116h10v10h-10zM73 116h10v10h-10zM85 116h10v10h-10zM97 116h10v10h-10zM109 116h10v10h-10zM139 44h10v10h-10zM151 44h10v10h-10zM163 44h10v10h-10zM175 44h10v10h-10zM187 44h10v10h-10zM139 56h10v10h-10zM187 56h10v10h-10zM139 68h10v10h-10zM187 68h10v10h-10zM139 80h10v10h-10zM187 80h10v10h-10zM139 92h10v10h-10zM187 92h10v10h-10zM139 104h10v10h-10zM187 104h10v10h-10zM139 116h10v10h-10zM151 116h10v10h-10zM163 116h10v10h-10zM175 116h10v10h-10zM187 116h10v10h-10zM217 44h10v10h-10zM229 44h10v10h-10zM241 44h10v10h-10zM253 44h10v10h-10zM217 56h10v10h-10zM265 56h10v10h-10zM217 68h10v10h-10zM265 68h10v10h-10zM217 80h10v10h-10zM265 80h10v10h-10zM217 92h10v10h-10zM265 92h10v10h-10zM217 104h10v10h-10zM265 104h10v10h-10zM217 116h10v10h-10zM229 116h10v10h-10zM241 116h10v10h-10zM253 116h10v10h-10zM295 44h10v10h-10zM307 44h10v10h-10zM319 44h10v10h-10zM331 44h10v10h-10zM343 44h10v10h-10zM295 56h10v10h-10zM295 68h10v10h-10zM307 68h10v10h-10zM319 68h10v10h-10zM331 68h10v10h-10zM295 80h10v10h-10zM295 92h10v10h-10zM295 104h10v10h-10zM295 116h10v10h-10zM307 116h10v10h-10zM319 116h10v10h-10zM331 116h10v10h-10zM343 116h10v10h-10zM373 44h10v10h-10zM385 44h10v10h-10zM397 44h10v10h-10zM409 44h10v10h-10zM421 44h10v10h-10zM397 56h10v10h-10zM397 68h10v10h-10zM397 80h10v10h-10zM397 92h10v10h-10zM397 104h10v10h-10zM373 116h10v10h-10zM385 116h10v10h-10zM397 116h10v10h-10zM409 116h10v10h-10zM421 116h10v10h-10zM463 44h10v10h-10zM475 44h10v10h-10zM487 44h10v10h-10zM451 56h10v10h-10zM499 56h10v10h-10zM451 68h10v10h-10zM499 68h10v10h-10zM451 80h10v10h-10zM463 80h10v10h-10zM475 80h10v10h-10zM487 80h10v10h-10zM499 80h10v10h-10zM451 92h10v10h-10zM499 92h10v10h-10zM451 104h10v10h-10zM499 104h10v10h-10zM451 116h10v10h-10zM499 116h10v10h-10zM529 44h10v10h-10zM577 44h10v10h-10zM529 56h10v10h-10zM541 56h10v10h-10zM577 56h10v10h-10zM529 68h10v10h-10zM553 68h10v10h-10zM577 68h10v10h-10zM529 80h10v10h-10zM565 80h10v10h-10zM577 80h10v10h-10zM529 92h10v10h-10zM577 92h10v10h-10zM529 104h10v10h-10zM577 104h10v10h-10zM529 116h10v10h-10zM577 116h10v10h-10z" fill="url(#pixels)" filter="url(#block-shadow)"/>
+    <rect x="61" y="146" width="392" height="8" fill="#f8fafc"/>
+    <rect x="471" y="146" width="72" height="8" fill="#5eead4"/>
+    <rect x="555" y="146" width="32" height="8" fill="#bef264"/>
+    <text x="62" y="178" fill="#94a3b8" font-family="Monaco, 'Courier New', monospace" font-size="18" font-weight="700" letter-spacing="4">OBSIDIAN CODEX SIDEBAR</text>
   </g>
 </svg>
