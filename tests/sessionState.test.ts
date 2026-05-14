@@ -13,6 +13,7 @@ import {
 	normalizeSidebarSessions,
 	resolveInitialSidebarPrompt,
 	updateActiveSidebarSession,
+	updateSidebarSession,
 	updateSidebarSessionMetadata,
 } from "../src/sessionState";
 
@@ -204,6 +205,30 @@ describe("sidebar sessions", () => {
 		expect(settings.sessions).toHaveLength(MAX_CODEIAN_SESSIONS);
 		expect(settings.sessions[0]?.lastPrompt).toBe("topic 6");
 		expect(settings.sessions.some((session) => session.lastPrompt === "topic 0")).toBe(false);
+	});
+
+	it("updates a background session without switching the active session", () => {
+		const settings = { ...SETTINGS };
+		normalizeSidebarSessions(settings, 10000);
+		const backgroundId = settings.activeSessionId;
+		createNewSidebarSession(settings, 10001);
+		const activeId = settings.activeSessionId;
+
+		updateSidebarSession(settings, backgroundId, {
+			containsNoteContext: false,
+			output: "background answer",
+			prompt: "Long background task",
+			reasoning: ["Checked files"],
+		}, 10002);
+
+		expect(settings.activeSessionId).toBe(activeId);
+		expect(getActiveSidebarSession(settings).id).toBe(activeId);
+		expect(settings.lastOutput).toBe("");
+		expect(settings.sessions.find((session) => session.id === backgroundId)).toMatchObject({
+			lastOutput: "background answer",
+			lastPrompt: "Long background task",
+			reasoning: ["Checked files"],
+		});
 	});
 
 	it("updates title and note metadata for the active session", () => {

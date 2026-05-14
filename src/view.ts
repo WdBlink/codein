@@ -26,10 +26,12 @@ import {
 	normalizeSidebarSessions,
 	switchSidebarSession,
 	updateActiveSidebarSession,
+	updateSidebarSession,
 	updateSidebarSessionMetadata,
 } from "./sessionState";
 import { buildVaultFileSuggestions, type VaultFolderLike } from "./vaultFileSuggestions";
 import { getVaultLinkTarget, resolveVaultFileLink, type VaultLinkTarget } from "./vaultLinkHandler";
+import type { CodeianSettings } from "./settings";
 
 export const VIEW_TYPE_CODEIAN = "codeian-codex-view";
 
@@ -53,9 +55,23 @@ const SANDBOX_OPTIONS = [
 	{ value: "danger-full-access", label: "YOLO" },
 ] as const;
 
+interface SessionRunState {
+	assistantOutput: string;
+	containsNoteContext: boolean;
+	diagnosticText: string;
+	fileChanges: CodexFileChange[];
+	jsonState: CodexJsonStreamState;
+	prompt: string;
+	reasoningItems: string[];
+	runMetadata: string;
+	runner: CodexRunner;
+	sessionId: string;
+	status: string;
+}
+
 export class CodeianView extends ItemView {
 	private plugin: CodeianPlugin;
-	private runner = new CodexRunner();
+	private runningSessions = new Map<string, SessionRunState>();
 	private promptEl: HTMLTextAreaElement | null = null;
 	private runButtonEl: HTMLButtonElement | null = null;
 	private cancelButtonEl: HTMLButtonElement | null = null;
@@ -67,6 +83,7 @@ export class CodeianView extends ItemView {
 	private modelLabelEl: HTMLElement | null = null;
 	private effortLabelEl: HTMLElement | null = null;
 	private sandboxLabelEl: HTMLElement | null = null;
+	private notificationStackEl: HTMLElement | null = null;
 	private sessionListEl: HTMLElement | null = null;
 	private sessionTitleEl: HTMLInputElement | null = null;
 	private sessionNoteEl: HTMLTextAreaElement | null = null;
@@ -78,13 +95,10 @@ export class CodeianView extends ItemView {
 	private promptSuggestions: PromptSuggestion[] = [];
 	private activeSuggestionIndex = 0;
 	private suggestionRegistry = new PromptSuggestionRegistry();
-	private jsonState: CodexJsonStreamState = createCodexJsonStreamState();
-	private diagnosticText = "";
 	private lastPrompt: string;
 	private currentAssistantOutput = "";
 	private currentReasoningItems: string[] = [];
 	private promptContainsNoteContext: boolean;
-	private running = false;
 
 	constructor(leaf: WorkspaceLeaf, plugin: CodeianPlugin) {
 		super(leaf);
@@ -119,8 +133,10 @@ export class CodeianView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
-		this.runner.cancel();
-		if (this.running) {
+		for (const run of this.runningSessions.values()) {
+			run.runner.cancel();
+		}
+		if (this.runningSessions.size > 0) {
 			this.setStatus("Cancelled");
 		}
 		await this.persistSessionState();
@@ -184,6 +200,13 @@ export class CodeianView extends ItemView {
 				role: "status",
 			},
 		});
+		this.notificationStackEl = this.contentEl.createDiv({
+			cls: "codeian-notification-stack",
+			attr: {
+				"aria-live": "polite",
+				role: "status",
+			},
+		});
 
 		this.renderSessionPanel();
 
@@ -223,7 +246,7 @@ export class CodeianView extends ItemView {
 			if (!shouldRunPromptFromKey(event)) {
 				return;
 			}
-			if (this.runner.isRunning()) {
+			if (this.getActiveRun()) {
 				return;
 			}
 			event.preventDefault();
@@ -304,7 +327,6 @@ export class CodeianView extends ItemView {
 		this.cancelButtonEl.disabled = true;
 
 		this.newSessionButtonEl.addEventListener("click", () => {
-			if (this.running) return;
 			void this.newSession();
 		});
 		this.settingsButtonEl.addEventListener("click", () => {
@@ -314,37 +336,48 @@ export class CodeianView extends ItemView {
 			void this.runPrompt();
 		});
 		this.cancelButtonEl.addEventListener("click", () => {
-			this.runner.cancel();
+			this.getActiveRun()?.runner.cancel();
 			this.setStatus("Cancelling...");
 		});
 		this.clearButtonEl.addEventListener("click", () => {
+			if (this.getActiveRun()) {
+				new Notice("Cancel this session before clearing it.");
+				return;
+			}
 			this.clearMessages();
 			this.setStatus("Ready");
 			void this.clearActiveSessionConversation();
 		});
 		this.updatePickerLabels();
+		this.updateRunControls();
 	}
 
 	private renderInitialMessages(): void {
 		this.clearMessages(false);
 		const activeSession = getActiveSidebarSession(this.plugin.settings);
+		const activeRun = this.runningSessions.get(activeSession.id);
 		this.currentAssistantOutput = activeSession.lastOutput;
 		this.currentReasoningItems = activeSession.reasoning;
 		if (activeSession.transcript.length > 0) {
 			for (const entry of activeSession.transcript) {
 				this.appendMessage(entry.role, entry.content, entry.reasoning);
 			}
+			if (activeRun) {
+				this.beginRunMessage(activeRun, false);
+			}
 			return;
 		}
 		if (activeSession.lastPrompt) {
 			this.appendMessage("user", activeSession.lastPrompt);
 		}
-		if (activeSession.lastOutput || activeSession.reasoning.length) {
+		if (activeRun) {
+			this.beginRunMessage(activeRun, !activeSession.lastPrompt);
+		} else if (activeSession.lastOutput || activeSession.reasoning.length) {
 			const message = this.appendMessage("assistant", activeSession.lastOutput || "No final response stored for this run.", activeSession.reasoning);
 			this.currentAssistantContentEl = message.contentEl;
 			this.currentAssistantMetaEl = message.metaEl;
 		}
-		if (!activeSession.lastPrompt && !activeSession.lastOutput && activeSession.reasoning.length === 0) {
+		if (!activeRun && !activeSession.lastPrompt && !activeSession.lastOutput && activeSession.reasoning.length === 0) {
 			this.renderWelcome();
 		}
 	}
@@ -416,9 +449,11 @@ export class CodeianView extends ItemView {
 		listEl.empty();
 		for (const [index, session] of this.plugin.settings.sessions.entries()) {
 			const isActive = session.id === this.plugin.settings.activeSessionId;
+			const isRunning = this.runningSessions.has(session.id);
 			const rowEl = listEl.createDiv({
-				cls: `codeian-session-tab${isActive ? " is-active" : ""}`,
+				cls: `codeian-session-tab${isActive ? " is-active" : ""}${isRunning ? " is-running" : ""}`,
 				attr: {
+					"aria-busy": String(isRunning),
 					"aria-selected": String(isActive),
 					role: "tab",
 					tabindex: isActive ? "0" : "-1",
@@ -431,6 +466,9 @@ export class CodeianView extends ItemView {
 			textEl.createSpan({ cls: "codeian-session-name", text: session.title });
 			if (session.note) {
 				textEl.createSpan({ cls: "codeian-session-note-preview", text: session.note });
+			}
+			if (isRunning) {
+				textEl.createSpan({ cls: "codeian-session-running-label", text: "Running" });
 			}
 			buttonEl.addEventListener("click", () => {
 				if (isActive) return;
@@ -462,8 +500,10 @@ export class CodeianView extends ItemView {
 	}
 
 	private async runPrompt(): Promise<void> {
-		if (this.runner.isRunning()) {
-			new Notice("Codex is already running.");
+		const activeSessionBeforeRun = getActiveSidebarSession(this.plugin.settings);
+		const sessionId = activeSessionBeforeRun.id;
+		if (this.runningSessions.has(sessionId)) {
+			new Notice("This session is already running.");
 			return;
 		}
 
@@ -495,60 +535,122 @@ export class CodeianView extends ItemView {
 			return;
 		}
 
-		const activeSessionBeforeRun = getActiveSidebarSession(this.plugin.settings);
 		const codexPrompt = buildCodexPromptForSession(activeSessionBeforeRun, prompt);
+		const runState: SessionRunState = {
+			assistantOutput: "",
+			containsNoteContext: this.promptContainsNoteContext,
+			diagnosticText: "",
+			fileChanges: [],
+			jsonState: createCodexJsonStreamState(),
+			prompt,
+			reasoningItems: [],
+			runMetadata: this.getRunMetadata(),
+			runner: new CodexRunner(),
+			sessionId,
+			status: `Running · ${this.getRunMetadata()}`,
+		};
+		const runSettings = cloneRunSettings(this.plugin.settings);
 
-		this.setRunning(true);
+		this.runningSessions.set(sessionId, runState);
 		this.clearComposer();
 		this.currentAssistantOutput = "";
 		this.currentReasoningItems = [];
 		await this.persistSessionState(prompt, true);
-		this.setStatus(`Running · ${this.getRunMetadata()}`);
-		this.beginRunMessage(prompt);
+		this.setStatus(runState.status);
+		this.beginRunMessage(runState, true);
+		this.renderSessionList();
+		this.updateRunControls();
 
 		try {
-			const result = await this.runner.run({
+			const result = await runState.runner.run({
 				prompt: codexPrompt,
-				settings: this.plugin.settings,
+				settings: runSettings,
 				vaultPath: this.plugin.getVaultPath(),
-				onStdout: (chunk) => this.appendStructuredCodexOutput(chunk),
+				onStdout: (chunk) => this.appendStructuredCodexOutput(runState, chunk),
 				onStderr: (chunk) => {
-					this.diagnosticText += chunk;
+					runState.diagnosticText += chunk;
 				},
 			});
 
-			const snapshot = flushCodexJsonStream(this.jsonState);
-			this.renderFileChanges(snapshot.fileChanges);
-			this.renderReasoningHistory(snapshot.reasoningItems);
+			const snapshot = flushCodexJsonStream(runState.jsonState);
+			runState.fileChanges = snapshot.fileChanges;
+			runState.reasoningItems = dedupeText(snapshot.reasoningItems.map((item) => item.text).filter(Boolean));
+			if (this.isActiveSession(sessionId)) {
+				this.renderFileChanges(snapshot.fileChanges);
+				this.renderReasoningHistory(snapshot.reasoningItems);
+			}
 			if (snapshot.hasFinalOutput) {
-				this.setAssistantContent(snapshot.finalOutput);
+				runState.assistantOutput = snapshot.finalOutput;
+				if (this.isActiveSession(sessionId)) {
+					this.setAssistantContent(snapshot.finalOutput);
+				}
 			}
 
 			if (result.code === 0) {
 				const usage = formatCodexUsage(snapshot.usage);
-				this.setStatus(usage ? `Finished · ${usage}` : "Finished");
+				runState.status = usage ? `Finished · ${usage}` : "Finished";
+				if (this.isActiveSession(sessionId)) {
+					this.setStatus(runState.status);
+				}
 				if (!snapshot.hasFinalOutput) {
-					this.setAssistantContent("Codex finished without a final response.");
+					runState.assistantOutput = "Codex finished without a final response.";
+					if (this.isActiveSession(sessionId)) {
+						this.setAssistantContent(runState.assistantOutput);
+					}
 				}
 			} else if (result.code === null) {
-				this.setStatus("Cancelled");
+				runState.status = "Cancelled";
+				if (this.isActiveSession(sessionId)) {
+					this.setStatus(runState.status);
+				}
 				if (!snapshot.hasFinalOutput) {
-					this.setAssistantContent("Codex run was cancelled.");
+					runState.assistantOutput = "Codex run was cancelled.";
+					if (this.isActiveSession(sessionId)) {
+						this.setAssistantContent(runState.assistantOutput);
+					}
 				}
 			} else {
-				this.setStatus(`Exited with code ${result.code}`);
+				runState.status = `Exited with code ${result.code}`;
+				if (this.isActiveSession(sessionId)) {
+					this.setStatus(runState.status);
+				}
 				if (!snapshot.hasFinalOutput) {
-					this.setAssistantContent(formatFailureMessage(this.diagnosticText || snapshot.errorText || `Codex exited with code ${result.code}.`));
+					runState.assistantOutput = formatFailureMessage(runState.diagnosticText || snapshot.errorText || `Codex exited with code ${result.code}.`);
+					if (this.isActiveSession(sessionId)) {
+						this.setAssistantContent(runState.assistantOutput);
+					}
 				}
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			this.setStatus("Failed");
-			this.setAssistantContent(formatFailureMessage(message));
+			runState.status = "Failed";
+			runState.assistantOutput = formatFailureMessage(message);
+			if (this.isActiveSession(sessionId)) {
+				this.setStatus(runState.status);
+				this.setAssistantContent(runState.assistantOutput);
+			}
 			new Notice(`Codeian failed: ${message}`);
 		} finally {
-			this.setRunning(false);
-			await this.persistSessionState(prompt, true);
+			this.runningSessions.delete(sessionId);
+			updateSidebarSession(this.plugin.settings, sessionId, {
+				containsNoteContext: runState.containsNoteContext,
+				output: runState.assistantOutput,
+				prompt: runState.prompt,
+				reasoning: runState.reasoningItems,
+			});
+			this.renderSessionList();
+			if (this.isActiveSession(sessionId)) {
+				this.currentAssistantOutput = runState.assistantOutput;
+				this.currentReasoningItems = runState.reasoningItems;
+				this.setStatus(runState.status);
+			} else {
+				this.showRunNotification(runState);
+				if (!this.getActiveRun()) {
+					this.setStatus(this.getIdleStatus());
+				}
+			}
+			this.updateRunControls();
+			await this.plugin.saveSettings();
 		}
 	}
 
@@ -659,11 +761,11 @@ export class CodeianView extends ItemView {
 		}
 	}
 
-	private beginRunMessage(prompt: string): void {
-		this.jsonState = createCodexJsonStreamState();
-		this.diagnosticText = "";
+	private beginRunMessage(runState: SessionRunState, includeUserMessage: boolean): void {
 		this.removeWelcome();
-		this.appendMessage("user", prompt);
+		if (includeUserMessage) {
+			this.appendMessage("user", runState.prompt);
+		}
 		const message = this.appendMessage("assistant", "Working...");
 		message.contentEl.empty();
 		this.currentToolEventsEl = message.contentEl.createDiv({ cls: "codeian-tool-events" });
@@ -673,16 +775,32 @@ export class CodeianView extends ItemView {
 		thinkingStackEl.createDiv({ cls: "codeian-thinking-line" });
 		thinkingStackEl.createDiv({ cls: "codeian-thinking-line codeian-thinking-line-short" });
 		this.currentAssistantMetaEl = message.metaEl;
-		this.currentAssistantMetaEl?.setText(`Streaming · ${this.getRunMetadata()}`);
+		this.currentAssistantMetaEl?.setText(`Streaming · ${runState.runMetadata}`);
+		if (runState.fileChanges.length > 0) {
+			this.renderFileChanges(runState.fileChanges);
+		}
+		if (runState.reasoningItems.length > 0) {
+			this.renderReasoningHistory(runState.reasoningItems.map((text, index) => ({ id: `running-${index}`, text })));
+		}
+		if (runState.assistantOutput) {
+			this.setAssistantContent(runState.assistantOutput);
+		}
 		this.scrollMessagesToBottom();
 	}
 
-	private appendStructuredCodexOutput(chunk: string): void {
-		const snapshot = appendCodexJsonChunk(this.jsonState, chunk);
-		this.renderFileChanges(snapshot.fileChanges);
-		this.renderReasoningHistory(snapshot.reasoningItems);
+	private appendStructuredCodexOutput(runState: SessionRunState, chunk: string): void {
+		const snapshot = appendCodexJsonChunk(runState.jsonState, chunk);
+		runState.fileChanges = snapshot.fileChanges;
+		runState.reasoningItems = dedupeText(snapshot.reasoningItems.map((item) => item.text).filter(Boolean));
 		if (snapshot.hasFinalOutput) {
-			this.setAssistantContent(snapshot.finalOutput);
+			runState.assistantOutput = snapshot.finalOutput;
+		}
+		if (this.isActiveSession(runState.sessionId)) {
+			this.renderFileChanges(snapshot.fileChanges);
+			this.renderReasoningHistory(snapshot.reasoningItems);
+			if (snapshot.hasFinalOutput) {
+				this.setAssistantContent(snapshot.finalOutput);
+			}
 		}
 	}
 
@@ -843,7 +961,6 @@ export class CodeianView extends ItemView {
 		this.currentAssistantMetaEl = null;
 		this.currentAssistantOutput = "";
 		this.currentReasoningItems = [];
-		this.plugin.settings.lastOutput = "";
 		if (renderEmpty) {
 			this.renderWelcome();
 		}
@@ -866,8 +983,9 @@ export class CodeianView extends ItemView {
 		this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
 	}
 
-	private setRunning(running: boolean): void {
-		this.running = running;
+	private updateRunControls(): void {
+		const activeRun = this.getActiveRun();
+		const running = Boolean(activeRun);
 		this.contentEl.toggleClass("codeian-is-running", running);
 		if (this.runButtonEl) {
 			this.runButtonEl.disabled = running;
@@ -879,7 +997,7 @@ export class CodeianView extends ItemView {
 			this.clearButtonEl.disabled = running;
 		}
 		if (this.newSessionButtonEl) {
-			this.newSessionButtonEl.disabled = running;
+			this.newSessionButtonEl.disabled = false;
 		}
 		if (this.promptEl) {
 			this.promptEl.toggleClass("codeian-prompt-running", running);
@@ -891,6 +1009,21 @@ export class CodeianView extends ItemView {
 			this.statusEl.setText(status);
 		}
 		this.plugin.settings.lastStatus = status;
+	}
+
+	private getActiveRun(): SessionRunState | undefined {
+		return this.runningSessions.get(this.plugin.settings.activeSessionId);
+	}
+
+	private isActiveSession(sessionId: string): boolean {
+		return this.plugin.settings.activeSessionId === sessionId;
+	}
+
+	private getIdleStatus(): string {
+		if (this.runningSessions.size === 0) {
+			return "Ready";
+		}
+		return this.runningSessions.size === 1 ? "Ready · 1 background run" : `Ready · ${this.runningSessions.size} background runs`;
 	}
 
 	private async newSession(): Promise<void> {
@@ -908,15 +1041,12 @@ export class CodeianView extends ItemView {
 		this.clearMessages();
 		this.renderSessionList();
 		this.updateSessionEditor();
-		this.setStatus("Ready");
+		this.setStatus(this.getIdleStatus());
+		this.updateRunControls();
 		await this.plugin.saveSettings();
 	}
 
 	private async switchSession(sessionId: string): Promise<void> {
-		if (this.running) {
-			new Notice("Cancel the running task before switching sessions.");
-			return;
-		}
 		await this.persistSessionState();
 		const session = switchSidebarSession(this.plugin.settings, sessionId);
 		this.lastPrompt = resolveSessionPrompt(session.lastPrompt, session.lastOutput, session.lastPromptContainsNoteContext, this.plugin.settings.defaultPrompt);
@@ -930,13 +1060,14 @@ export class CodeianView extends ItemView {
 		this.renderInitialMessages();
 		this.renderSessionList();
 		this.updateSessionEditor();
-		this.setStatus(this.plugin.settings.lastStatus || "Ready");
+		this.setStatus(this.runningSessions.get(session.id)?.status ?? this.getIdleStatus());
+		this.updateRunControls();
 		await this.plugin.saveSettings();
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
-		if (this.running) {
-			new Notice("Cancel the running task before deleting sessions.");
+		if (this.runningSessions.has(sessionId)) {
+			new Notice("Cancel this session before deleting it.");
 			return;
 		}
 		const wasActive = sessionId === this.plugin.settings.activeSessionId;
@@ -955,6 +1086,7 @@ export class CodeianView extends ItemView {
 			this.updateSessionEditor();
 		}
 		this.renderSessionList();
+		this.updateRunControls();
 		await this.plugin.saveSettings();
 	}
 
@@ -990,6 +1122,46 @@ export class CodeianView extends ItemView {
 		};
 		void appWithSetting.setting?.open();
 		void appWithSetting.setting?.openTabById(this.plugin.manifest.id);
+	}
+
+	private showRunNotification(runState: SessionRunState): void {
+		const session = this.plugin.settings.sessions.find((candidate) => candidate.id === runState.sessionId);
+		const title = session?.title || "Background chat";
+		const isFailure = runState.status === "Failed" || runState.status.startsWith("Exited");
+		const isCancelled = runState.status === "Cancelled";
+		const headline = isFailure ? "Session needs attention" : isCancelled ? "Session cancelled" : "Session finished";
+		new Notice(`Codeian: ${headline} · ${title}`);
+
+		const stackEl = this.notificationStackEl;
+		if (!stackEl) {
+			return;
+		}
+		const notificationEl = stackEl.createDiv({
+			cls: `codeian-run-notification${isFailure ? " is-error" : ""}${isCancelled ? " is-muted" : ""}`,
+		});
+		const railEl = notificationEl.createDiv({ cls: "codeian-run-notification-rail", attr: { "aria-hidden": "true" } });
+		setIcon(railEl, isFailure ? "alert-triangle" : isCancelled ? "circle-slash" : "check-circle-2");
+		const bodyEl = notificationEl.createDiv({ cls: "codeian-run-notification-body" });
+		bodyEl.createDiv({ cls: "codeian-run-notification-title", text: headline });
+		bodyEl.createDiv({ cls: "codeian-run-notification-detail", text: `${title} · ${runState.status}` });
+		const actionsEl = notificationEl.createDiv({ cls: "codeian-run-notification-actions" });
+		const openButtonEl = actionsEl.createEl("button", { cls: "codeian-run-notification-button", text: "Open" });
+		const closeButtonEl = actionsEl.createEl("button", {
+			cls: "clickable-icon codeian-run-notification-close",
+			attr: { "aria-label": "Dismiss notification", title: "Dismiss" },
+		});
+		setIcon(closeButtonEl, "x");
+		const dismiss = () => {
+			notificationEl.addClass("is-dismissing");
+			globalThis.setTimeout(() => notificationEl.remove(), 180);
+		};
+		openButtonEl.addEventListener("click", () => {
+			void this.switchSession(runState.sessionId);
+			dismiss();
+		});
+		closeButtonEl.addEventListener("click", dismiss);
+		const timeout = globalThis.setTimeout(dismiss, 12000);
+		this.register(() => globalThis.clearTimeout(timeout));
 	}
 
 	private clearComposer(): void {
@@ -1144,13 +1316,14 @@ export class CodeianView extends ItemView {
 	}
 
 	private async persistSessionState(promptOverride?: string, recordTranscript = false): Promise<void> {
+		const activeRun = this.getActiveRun();
 		this.plugin.settings.lastPromptContainsNoteContext = this.promptContainsNoteContext;
 		updateActiveSidebarSession(this.plugin.settings, {
 			containsNoteContext: this.promptContainsNoteContext,
-			output: this.currentAssistantOutput,
-			prompt: promptOverride ?? this.promptEl?.value ?? this.lastPrompt,
+			output: activeRun?.assistantOutput ?? this.currentAssistantOutput,
+			prompt: promptOverride ?? activeRun?.prompt ?? this.promptEl?.value ?? this.lastPrompt,
 			recordTranscript,
-			reasoning: this.currentReasoningItems,
+			reasoning: activeRun?.reasoningItems ?? this.currentReasoningItems,
 		});
 		this.renderSessionList();
 		this.updateSessionEditor();
@@ -1229,6 +1402,20 @@ function dedupeText(items: readonly string[]): string[] {
 		result.push(text);
 	}
 	return result;
+}
+
+function cloneRunSettings(settings: CodeianSettings): CodeianSettings {
+	return {
+		...settings,
+		sessions: settings.sessions.map((session) => ({
+			...session,
+			reasoning: [...session.reasoning],
+			transcript: session.transcript.map((entry) => ({
+				...entry,
+				reasoning: [...entry.reasoning],
+			})),
+		})),
+	};
 }
 
 function getVaultFolders(vault: {

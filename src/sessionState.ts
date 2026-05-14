@@ -133,9 +133,14 @@ export function deleteSidebarSession(settings: CodeianSettings, sessionId: strin
 }
 
 export function updateActiveSidebarSession(settings: CodeianSettings, update: SessionStateUpdate, now = Date.now()): CodeianSession {
+	return updateSidebarSession(settings, settings.activeSessionId, update, now);
+}
+
+export function updateSidebarSession(settings: CodeianSettings, sessionId: string, update: SessionStateUpdate, now = Date.now()): CodeianSession {
 	normalizeSidebarSessions(settings, now);
-	const index = settings.sessions.findIndex((session) => session.id === settings.activeSessionId);
+	const index = settings.sessions.findIndex((session) => session.id === sessionId);
 	const current = settings.sessions[index] ?? getActiveSidebarSession(settings);
+	const targetSessionId = current.id;
 	const persisted = buildPersistedSidebarState(update.prompt, update.output, update.containsNoteContext);
 	const reasoning = persisted.lastPromptContainsNoteContext ? [] : normalizeReasoningHistory(update.reasoning);
 	const next: CodeianSession = {
@@ -164,7 +169,9 @@ export function updateActiveSidebarSession(settings: CodeianSettings, update: Se
 			return b.updatedAt - a.updatedAt;
 		})
 		.slice(0, MAX_CODEIAN_SESSIONS);
-	syncLegacyStateFromActiveSession(settings);
+	if (targetSessionId === settings.activeSessionId) {
+		syncLegacyStateFromActiveSession(settings);
+	}
 	return next;
 }
 
