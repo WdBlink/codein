@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "*.*.*"
 
 permissions:
   contents: write
@@ -30,7 +30,7 @@ jobs:
       - name: Validate tag matches manifest version
         run: |
           VERSION="$(node -p "require('./manifest.json').version")"
-          test "v${VERSION}" = "${GITHUB_REF_NAME}"
+          test "${VERSION}" = "${GITHUB_REF_NAME}"
 
       - name: Test
         run: npm test
