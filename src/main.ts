@@ -65,7 +65,8 @@ export default class CodeianPlugin extends Plugin {
 			});
 		}
 
-		await workspace.revealLeaf(leaf);
+		workspace.rightSplit.expand();
+		workspace.setActiveLeaf(leaf, { focus: true });
 		return leaf.view instanceof CodeianView ? leaf.view : null;
 	}
 

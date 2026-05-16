@@ -736,7 +736,7 @@ export class CodeianView extends ItemView {
 				buttonEl.setAttr("aria-expanded", "false");
 			}
 		});
-		this.registerDomEvent(document, "click", () => {
+		this.registerDomEvent(activeDocument, "click", () => {
 			selectorEl.removeClass("is-open");
 			buttonEl.setAttr("aria-expanded", "false");
 		});
@@ -1105,10 +1105,10 @@ export class CodeianView extends ItemView {
 
 	private updateSessionEditor(): void {
 		const activeSession = getActiveSidebarSession(this.plugin.settings);
-		if (this.sessionTitleEl && document.activeElement !== this.sessionTitleEl) {
+		if (this.sessionTitleEl && activeDocument.activeElement !== this.sessionTitleEl) {
 			this.sessionTitleEl.value = activeSession.title;
 		}
-		if (this.sessionNoteEl && document.activeElement !== this.sessionNoteEl) {
+		if (this.sessionNoteEl && activeDocument.activeElement !== this.sessionNoteEl) {
 			this.sessionNoteEl.value = activeSession.note;
 		}
 	}
@@ -1153,15 +1153,15 @@ export class CodeianView extends ItemView {
 		setIcon(closeButtonEl, "x");
 		const dismiss = () => {
 			notificationEl.addClass("is-dismissing");
-			globalThis.setTimeout(() => notificationEl.remove(), 180);
+			activeWindow.setTimeout(() => notificationEl.remove(), 180);
 		};
 		openButtonEl.addEventListener("click", () => {
 			void this.switchSession(runState.sessionId);
 			dismiss();
 		});
 		closeButtonEl.addEventListener("click", dismiss);
-		const timeout = globalThis.setTimeout(dismiss, 12000);
-		this.register(() => globalThis.clearTimeout(timeout));
+		const timeout = activeWindow.setTimeout(dismiss, 12000);
+		this.register(() => activeWindow.clearTimeout(timeout));
 	}
 
 	private clearComposer(): void {

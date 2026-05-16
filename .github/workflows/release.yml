@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -42,15 +44,23 @@ jobs:
       - name: Verify release files
         run: npm run verify:release
 
+      - name: Attest release files
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
       - name: Write release notes
         run: |
           cat > release-notes.md <<'EOF'
           ## Changes
 
-          - Add `@` vault Markdown file suggestions in the Codeian prompt.
-          - Filter candidates by typed text and insert the selected vault-relative path.
-          - Refresh file suggestions when vault Markdown files are created, deleted, or renamed.
-          - Address Obsidian community plugin review lint requirements.
+          - Reduce Obsidian Community Scorecard review risks.
+          - Preserve right-sidebar activation without requiring the newer `Workspace.revealLeaf` API.
+          - Improve popout-window compatibility and child-process environment handling.
+          - Add project contribution guidance.
 
           ## Install
 

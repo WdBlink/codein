@@ -79,6 +79,23 @@ describe("resolveCliCommand", () => {
 		expect(result.wasResolvedFromPath).toBe(false);
 		expect(result.path).toContain("/usr/local/bin");
 	});
+
+	it("passes only the allowed environment variables to child processes", async () => {
+		const env = new Map([
+			["HOME", "/Users/tester"],
+			["PATH", "/custom/bin"],
+			["OPENAI_API_KEY", "test-key"],
+			["OPENAI_PROJECT_ID", "project-id"],
+			["AWS_SECRET_ACCESS_KEY", "do-not-forward"],
+		]);
+		const result = await resolveCliCommand(SETTINGS, () => false, (name) => env.get(name));
+
+		expect(result.env.HOME).toBe("/Users/tester");
+		expect(result.env.OPENAI_API_KEY).toBe("test-key");
+		expect(result.env.OPENAI_PROJECT_ID).toBe("project-id");
+		expect(result.env.PATH).toContain("/custom/bin");
+		expect(result.env.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+	});
 });
 
 describe("normalizeFileSystemPath", () => {

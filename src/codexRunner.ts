@@ -115,7 +115,7 @@ export async function testCodexCli(
 	const spawn = spawnProcess ?? nodeSpawn;
 	const args = ["--version"];
 
-	return await new Promise<CliSelfTestResult>((resolve) => {
+	return new Promise<CliSelfTestResult>((resolve) => {
 		let stdout = "";
 		let stderr = "";
 		let settled = false;
@@ -124,7 +124,7 @@ export async function testCodexCli(
 			env: resolvedCommand.env,
 			shell: false,
 		});
-		const timeout = globalThis.setTimeout(() => {
+		const timeout = setTimeout(() => {
 			child.kill();
 			finish({
 				ok: false,
@@ -138,7 +138,7 @@ export async function testCodexCli(
 		const finish = (result: CliSelfTestResult) => {
 			if (settled) return;
 			settled = true;
-			globalThis.clearTimeout(timeout);
+			clearTimeout(timeout);
 			resolve(result);
 		};
 

@@ -273,7 +273,7 @@ function runCommand(command: string, args: string[], options: SpawnOptionsWithou
 		let stderr = "";
 		let settled = false;
 		const child = nodeSpawn(command, args, options);
-		const timeout = globalThis.setTimeout(() => {
+		const timeout = setTimeout(() => {
 			child.kill();
 			finish({ code: null, stdout, stderr: stderr || "Timed out." });
 		}, CODEX_HELP_TIMEOUT_MS);
@@ -281,7 +281,7 @@ function runCommand(command: string, args: string[], options: SpawnOptionsWithou
 		const finish = (result: CommandResult) => {
 			if (settled) return;
 			settled = true;
-			globalThis.clearTimeout(timeout);
+			clearTimeout(timeout);
 			resolve(result);
 		};
 		const appendOutput = (target: "stdout" | "stderr", data: Buffer) => {

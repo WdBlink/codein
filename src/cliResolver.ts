@@ -20,8 +20,32 @@ export interface CliSelfTestResult {
 }
 
 export type ExecutableExists = (filePath: string) => boolean | Promise<boolean>;
+export type EnvironmentReader = (name: string) => string | undefined;
 
 const PATH_SEPARATOR = process.platform === "win32" ? ";" : ":";
+const CHILD_ENV_ALLOWLIST = [
+	"CODEX_HOME",
+	"HOME",
+	"LANG",
+	"LC_ALL",
+	"LC_CTYPE",
+	"LOGNAME",
+	"NODE_EXTRA_CA_CERTS",
+	"OPENAI_API_BASE",
+	"OPENAI_API_KEY",
+	"OPENAI_BASE_URL",
+	"OPENAI_ORG_ID",
+	"OPENAI_ORGANIZATION",
+	"OPENAI_PROJECT_ID",
+	"PATH",
+	"SHELL",
+	"SSL_CERT_FILE",
+	"TEMP",
+	"TMP",
+	"TMPDIR",
+	"USER",
+	"USERPROFILE",
+] as const;
 
 export function getEnhancedPath(basePath = process.env.PATH ?? "", home = getHomeDirectory()): string {
 	const entries = [
@@ -45,9 +69,10 @@ export function getEnhancedPath(basePath = process.env.PATH ?? "", home = getHom
 export async function resolveCliCommand(
 	settings: CodeianSettings,
 	executableExists: ExecutableExists = defaultExecutableExists,
+	readEnv: EnvironmentReader = readProcessEnv,
 ): Promise<ResolvedCommand> {
 	const rawCommand = (settings.codexCommand || "codex").trim() || "codex";
-	const baseEnv = getProcessEnv();
+	const baseEnv = getChildProcessEnv(readEnv);
 	const enhancedPath = getEnhancedPath(baseEnv.PATH);
 	const env = { ...baseEnv, PATH: enhancedPath };
 
@@ -119,13 +144,22 @@ function hasPathSeparator(command: string): boolean {
 }
 
 function getHomeDirectory(): string {
-	return process.env.HOME ?? process.env.USERPROFILE ?? "";
+	return readProcessEnv("HOME") ?? readProcessEnv("USERPROFILE") ?? "";
 }
 
-function getProcessEnv(): Record<string, string> {
-	return Object.fromEntries(
-		Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-	);
+function getChildProcessEnv(readEnv: EnvironmentReader): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const name of CHILD_ENV_ALLOWLIST) {
+		const value = readEnv(name);
+		if (value !== undefined) {
+			env[name] = value;
+		}
+	}
+	return env;
+}
+
+function readProcessEnv(name: string): string | undefined {
+	return process.env[name];
 }
 
 function joinPath(dir: string, command: string): string {

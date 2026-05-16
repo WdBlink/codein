@@ -84,7 +84,15 @@ The `Add current note context` command inserts the active note into the prompt c
 
 ## Installation
 
-Codeian is not yet published in the Obsidian community plugin marketplace.
+Codeian has a listing in the new Obsidian Community Directory:
+
+```text
+obsidian://show-plugin?id=codeian
+```
+
+You can also view it on the web:
+
+https://community.obsidian.md/plugins/codeian
 
 ### Manual install from GitHub release
 
@@ -185,7 +193,7 @@ Each GitHub release should include exactly the files Obsidian needs to load the 
 
 - Codeian currently uses `codex exec`, so each run is non-interactive.
 - Conversation history is local sidebar state, not a full multi-session transcript manager.
-- MCP server management, app-server integration, inline note editing, and community marketplace publishing are not part of this version.
+- MCP server management, app-server integration, and inline note editing are not part of this version.
 - Manual GUI acceptance should still be performed in an isolated Obsidian test vault.
 
 Use [docs/OBSIDIAN_SMOKE_CHECKLIST.md](docs/OBSIDIAN_SMOKE_CHECKLIST.md) for the manual Obsidian smoke pass.
